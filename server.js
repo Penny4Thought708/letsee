@@ -16,12 +16,19 @@ app.use(express.json());
 const server = http.createServer(app);
 
 const allowedOrigins = [
-  "http://localhost",
-  "http://localhost:3000",
-  "http://localhost:3001",
+  // Local development
+  "http://localhost", "http://localhost:3000", "http://localhost:3001", "http://127.0.0.1", "http://127.0.0.1:3000", "http://127.0.0.1:3001",
+
+  // Dev Tunnels
   "https://1r8lbgk7-80.use.devtunnels.ms",
+
+  // Render frontend
+  "https://letsee-vv23.onrender.com",
+
+  // Render backend (signaling server)
   "https://letsee-vv23.onrender.com"
 ];
+
 
 app.use(cors({
   origin: allowedOrigins,
@@ -190,5 +197,6 @@ const PORT = process.env.PORT || 10000;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Signaling server running on port ${PORT}`);
 });
+
 
 
