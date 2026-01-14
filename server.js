@@ -10,7 +10,7 @@ import cors from "cors";
 import fs from "fs";
 import WaveformData from "waveform-data";
 
-import registerWebRTCHandlers from "./sockets/webrtc.js";
+
 
 // -------------------------------------------------------
 // Database
@@ -346,8 +346,6 @@ io.on("connection", (socket) => {
   // Audio messaging
   registerAudioMessaging(socket, () => currentUserId);
 
-  // WebRTC signaling + presence hooks
-  registerWebRTCHandlers(io, socket, { isBlocked, isDND, db });
 
   // Disconnect
   socket.on("disconnect", () => {
@@ -570,4 +568,5 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Realtime server listening on port ${PORT}`);
 });
+
 
