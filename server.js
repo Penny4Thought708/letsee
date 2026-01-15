@@ -1,11 +1,12 @@
 // -------------------------------------------------------
 // server.js — Modular Realtime Backend (WebRTC + Presence + Voicemail)
+// Postgres / Neon version
 // -------------------------------------------------------
 
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
-import mysql from "mysql2/promise";
+
 import cors from "cors";
 import WaveformData from "waveform-data";
 import fs from "fs";
@@ -13,13 +14,16 @@ import fs from "fs";
 import registerWebRTCHandlers from "./sockets/webrtc.js";
 
 // -------------------------------------------------------
-// Database
+// Database (Postgres / Neon)
 // -------------------------------------------------------
-const db = await mysql.createPool({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "scrubbers_db",
+import pkg from "pg";
+const { Pool } = pkg;
+
+const db = new Pool({
+  connectionString: process.env.DB_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
 
 // -------------------------------------------------------
@@ -149,14 +153,14 @@ function broadcastPresenceOffline(userId) {
 }
 
 // -------------------------------------------------------
-// Blocking helper
+// Blocking helper (Postgres)
 // -------------------------------------------------------
 async function isBlocked(receiverId, senderId) {
-  const [rows] = await db.query(
-    "SELECT 1 FROM blocked_contacts WHERE user_id = ? AND blocked_id = ? LIMIT 1",
+  const result = await db.query(
+    "SELECT 1 FROM blocked_contacts WHERE user_id = $1 AND blocked_id = $2 LIMIT 1",
     [receiverId, senderId]
   );
-  return rows.length > 0;
+  return result.rows.length > 0;
 }
 
 // -------------------------------------------------------
@@ -255,7 +259,7 @@ function registerAudioMessaging(socket, getCurrentUserId) {
 
     if (isDND(target)) {
       await db.query(
-        "INSERT INTO voicemails (user_id, from_id, audio_url) VALUES (?, ?, ?)",
+        "INSERT INTO voicemails (user_id, from_id, audio_url) VALUES ($1, $2, $3)",
         [target, sender, url]
       );
 
@@ -380,7 +384,7 @@ app.post("/profile-update", (req, res) => {
 });
 
 // -------------------------------------------------------
-// Voicemail list API
+// Voicemail list API (Postgres)
 // -------------------------------------------------------
 app.get("/api/voicemail/list", async (req, res) => {
   try {
@@ -389,16 +393,16 @@ app.get("/api/voicemail/list", async (req, res) => {
       return res.status(400).json({ error: "Missing userId" });
     }
 
-    const [rows] = await db.query(
+    const result = await db.query(
       `SELECT id, user_id, from_id, audio_url, transcript, peaks_json, created_at, listened
        FROM voicemails
-       WHERE user_id = ?
+       WHERE user_id = $1
        ORDER BY id DESC
        LIMIT 100`,
       [userId]
     );
 
-    res.json({ voicemails: rows || [] });
+    res.json({ voicemails: result.rows || [] });
   } catch (err) {
     console.error("[voicemail] Error loading list:", err);
     res.status(500).json({ error: "Database error" });
@@ -406,10 +410,10 @@ app.get("/api/voicemail/list", async (req, res) => {
 });
 
 // -------------------------------------------------------
-// Call Log: Fetch enriched row (same shape as load.php)
+// Call Log: Fetch enriched row (same shape as load.php) — Postgres
 // -------------------------------------------------------
 async function getEnrichedCallLog(db, logId, viewerId) {
-  const [rows] = await db.query(
+  const result = await db.query(
     `
     SELECT 
       cl.id,
@@ -427,12 +431,12 @@ async function getEnrichedCallLog(db, logId, viewerId) {
       ur.avatar   AS receiver_avatar,
 
       CASE
-        WHEN cl.caller_id = ? THEN 'outgoing'
+        WHEN cl.caller_id = $1 THEN 'outgoing'
         ELSE 'incoming'
       END AS direction,
 
       CASE
-        WHEN cl.caller_id = ? THEN cl.receiver_id
+        WHEN cl.caller_id = $2 THEN cl.receiver_id
         ELSE cl.caller_id
       END AS other_party_id,
 
@@ -441,15 +445,15 @@ async function getEnrichedCallLog(db, logId, viewerId) {
         FROM private_messages pm
         WHERE 
           (
-            pm.sender_id = ? 
+            pm.sender_id = $3 
             AND pm.receiver_id = 
-              CASE WHEN cl.caller_id = ? THEN cl.receiver_id ELSE cl.caller_id END
+              CASE WHEN cl.caller_id = $4 THEN cl.receiver_id ELSE cl.caller_id END
           )
           OR
           (
             pm.sender_id = 
-              CASE WHEN cl.caller_id = ? THEN cl.receiver_id ELSE cl.caller_id END
-            AND pm.receiver_id = ?
+              CASE WHEN cl.caller_id = $5 THEN cl.receiver_id ELSE cl.caller_id END
+            AND pm.receiver_id = $6
           )
         ORDER BY pm.created_at DESC
         LIMIT 1
@@ -460,15 +464,15 @@ async function getEnrichedCallLog(db, logId, viewerId) {
         FROM private_messages pm
         WHERE 
           (
-            pm.sender_id = ? 
+            pm.sender_id = $7 
             AND pm.receiver_id = 
-              CASE WHEN cl.caller_id = ? THEN cl.receiver_id ELSE cl.caller_id END
+              CASE WHEN cl.caller_id = $8 THEN cl.receiver_id ELSE cl.caller_id END
           )
           OR
           (
             pm.sender_id = 
-              CASE WHEN cl.caller_id = ? THEN cl.receiver_id ELSE cl.caller_id END
-            AND pm.receiver_id = ?
+              CASE WHEN cl.caller_id = $9 THEN cl.receiver_id ELSE cl.caller_id END
+            AND pm.receiver_id = $10
           )
         ORDER BY pm.created_at DESC
         LIMIT 1
@@ -479,15 +483,15 @@ async function getEnrichedCallLog(db, logId, viewerId) {
         FROM private_messages pm
         WHERE 
           (
-            pm.sender_id = ? 
+            pm.sender_id = $11 
             AND pm.receiver_id = 
-              CASE WHEN cl.caller_id = ? THEN cl.receiver_id ELSE cl.caller_id END
+              CASE WHEN cl.caller_id = $12 THEN cl.receiver_id ELSE cl.caller_id END
           )
           OR
           (
             pm.sender_id = 
-              CASE WHEN cl.caller_id = ? THEN cl.receiver_id ELSE cl.caller_id END
-            AND pm.receiver_id = ?
+              CASE WHEN cl.caller_id = $13 THEN cl.receiver_id ELSE cl.caller_id END
+            AND pm.receiver_id = $14
           )
         ORDER BY pm.created_at DESC
         LIMIT 1
@@ -496,7 +500,7 @@ async function getEnrichedCallLog(db, logId, viewerId) {
     FROM call_logs cl
     LEFT JOIN users uc ON cl.caller_id = uc.user_id
     LEFT JOIN users ur ON cl.receiver_id = ur.user_id
-    WHERE cl.id = ?
+    WHERE cl.id = $15
     LIMIT 1
     `,
     [
@@ -518,7 +522,7 @@ async function getEnrichedCallLog(db, logId, viewerId) {
     ]
   );
 
-  return rows[0] || null;
+  return result.rows[0] || null;
 }
 
 // -------------------------------------------------------
@@ -548,21 +552,21 @@ app.post("/call-log/new", async (req, res) => {
 });
 
 // -------------------------------------------------------
-// Call logs API
+// Call logs API (Postgres)
 // -------------------------------------------------------
 app.get("/api/call-logs", async (req, res) => {
   try {
     const offset = parseInt(req.query.offset || "0", 10);
     const limit = parseInt(req.query.limit || "30", 10);
 
-    const [rows] = await db.query(
-      `SELECT * FROM call_logs ORDER BY id DESC LIMIT ?, ?`,
-      [offset, limit]
+    const result = await db.query(
+      `SELECT * FROM call_logs ORDER BY id DESC LIMIT $1 OFFSET $2`,
+      [limit, offset]
     );
 
     res.json({
-      logs: rows,
-      hasMore: rows.length === limit,
+      logs: result.rows,
+      hasMore: result.rows.length === limit,
     });
   } catch (err) {
     console.error("[call-logs] DB error:", err);
@@ -604,6 +608,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Realtime server listening on port ${PORT}`);
 });
+
 
 
 
