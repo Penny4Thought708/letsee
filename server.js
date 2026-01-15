@@ -188,6 +188,31 @@ io.on("connection", (socket) => {
     }
   });
 });
+// -------------------------------------------------------
+// ICE Server Route (Xirsys TURN/STUN)
+// -------------------------------------------------------
+app.get("/NewApp/get-ice", async (req, res) => {
+  try {
+    const response = await fetch("https://global.xirsys.net/_turn/MyFirstApp", {
+      method: "PUT",
+      headers: {
+        Authorization:
+          "Basic " +
+          Buffer.from(
+            "TommyYatts:91585c4a-ef29-11f0-a612-0242ac150002"
+          ).toString("base64"),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ format: "urls" }),
+    });
+
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error("ICE route error:", err);
+    res.status(500).json({ error: "ice-failed" });
+  }
+});
 
 // -------------------------------------------------------
 // Start server
@@ -197,6 +222,7 @@ const PORT = process.env.PORT || 10000;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Signaling server running on port ${PORT}`);
 });
+
 
 
 
