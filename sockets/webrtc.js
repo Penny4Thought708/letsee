@@ -1,30 +1,6 @@
 // public/js/webrtc/WebRTCController.js
 
-import { rtcState } from "./WebRTCState.js";
-import {
-  applyAvatar,
-  showAvatar,
-  setRemoteAvatar,
-  setLocalAvatar,
-  showRemoteAvatar,
-  showLocalAvatar,
-  showRemoteVideo,
-  showLocalVideo,
-} from "./AvatarFallback.js";
-import { getLocalMedia, attachRemoteTrack } from "./WebRTCMedia.js";
-import { addCallLogEntry } from "../call-log.js";
 
-import {
-  getMyUserId,
-  getMyFullname,
-  getMyAvatar,
-  ringback,
-  ringtone,
-  localWrapper,
-  remoteWrapper,
-} from "../session.js";
-import { getIceServers } from "../ice.js";
-import { getReceiver } from "../messaging.js";
 
 /* -------------------------------------------------------
    Helpers
@@ -802,3 +778,4 @@ export class WebRTCController {
     });
   }
 }
+
