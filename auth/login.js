@@ -5,54 +5,32 @@ import db from "../db.js";
 
 const router = express.Router();
 
-router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-
+router.get("/me", async (req, res) => {
   try {
+    const token = req.cookies.token;
+    if (!token) return res.json({ success: false });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
     const result = await db.query(
-      "SELECT * FROM users WHERE email = $1",
-      [email]
+      "SELECT user_id, fullname, email, avatar FROM users WHERE user_id = $1",
+      [decoded.user_id]
     );
 
     if (result.rowCount === 0) {
-      return res.json({ success: false, error: "Email address not registered" });
+      return res.json({ success: false });
     }
-
-    const user = result.rows[0];
-
-    // ⭐ Fix PHP → Node bcrypt prefix
-    let hash = user.password;
-    if (hash.startsWith("$2y$")) {
-      hash = "$2b$" + hash.substring(4);
-    }
-
-    const match = await bcrypt.compare(password, hash);
-    if (!match) {
-      return res.json({ success: false, error: "Password Incorrect" });
-    }
-
-    const token = jwt.sign(
-      {
-        user_id: user.user_id,
-        fullname: user.fullname,
-        email: user.email,
-        avatar: user.avatar
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
 
     return res.json({
       success: true,
-      token,
-      redirect: "/dashboard.html"
+      user: result.rows[0]
     });
 
   } catch (err) {
-    console.error(err);
-    return res.json({ success: false, error: "Server error" });
+    return res.json({ success: false });
   }
 });
+
 
 
 export default router;
