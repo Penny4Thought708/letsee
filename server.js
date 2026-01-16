@@ -31,6 +31,8 @@ const db = new Pool({
 // -------------------------------------------------------
 const app = express();
 app.use(express.json());
+import authRouter from "./routes/auth.js";
+app.use("/auth", authRouter);
 
 const server = http.createServer(app);
 
@@ -51,13 +53,15 @@ const allowedOrigins = [
   // ⭐ ADD THIS
   "https://penny4thought708.github.io",
 ];
-
 app.use(
   cors({
     origin: allowedOrigins,
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
   })
 );
+
 
 const io = new Server(server, {
   cors: {
@@ -66,6 +70,7 @@ const io = new Server(server, {
     credentials: true,
   },
 });
+
 
 // -------------------------------------------------------
 // Presence / DND state
@@ -606,6 +611,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Realtime server listening on port ${PORT}`);
 });
+
 
 
 
