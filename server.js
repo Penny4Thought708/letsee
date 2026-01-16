@@ -8,6 +8,7 @@ import http from "http";
 import { Server } from "socket.io";
 
 import cors from "cors";
+import cookieParser from "cookie-parser";   // ⭐ REQUIRED FOR req.cookies
 import WaveformData from "waveform-data";
 import fs from "fs";
 
@@ -21,9 +22,7 @@ const { Pool } = pkg;
 
 const db = new Pool({
   connectionString: process.env.DB_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: { rejectUnauthorized: false },
 });
 
 // -------------------------------------------------------
@@ -32,7 +31,9 @@ const db = new Pool({
 const app = express();
 const server = http.createServer(app);
 
-
+// -------------------------------------------------------
+// CORS (must allow GitHub Pages + Render + localhost)
+// -------------------------------------------------------
 const allowedOrigins = [
   "http://localhost",
   "http://localhost:3000",
@@ -47,9 +48,10 @@ const allowedOrigins = [
   "https://letsee-vv23.onrender.com",
   "https://letsee-backend.onrender.com",
 
-  // ⭐ ADD THIS
+  // ⭐ REQUIRED FOR GitHub Pages
   "https://penny4thought708.github.io",
 ];
+
 app.use(cors({
   origin: allowedOrigins,
   credentials: true,
@@ -58,12 +60,17 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(cookieParser());   // ⭐ MUST COME BEFORE ROUTES
 
+// -------------------------------------------------------
+// Auth Routes
+// -------------------------------------------------------
 import authRouter from "./auth/login.js";
 app.use("/auth", authRouter);
 
-
-
+// -------------------------------------------------------
+// Socket.IO
+// -------------------------------------------------------
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
@@ -72,17 +79,14 @@ const io = new Server(server, {
   },
 });
 
-
 // -------------------------------------------------------
 // Presence / DND state
 // -------------------------------------------------------
-// onlineUsers: userId -> { socketIds: Set<string>, fullname: string|null, lastSeen: number, away: boolean }
 const onlineUsers = new Map();
-const dndState = new Map(); // userId -> boolean
+const dndState = new Map();
 
 const toStr = (v) => (v == null ? null : String(v));
 
-// Helpers for onlineUsers
 function addOnlineUser(userId, socketId, fullname = null) {
   const key = toStr(userId);
   if (!key) return;
@@ -99,9 +103,7 @@ function addOnlineUser(userId, socketId, fullname = null) {
   }
 
   entry.socketIds.add(socketId);
-  if (fullname) {
-    entry.fullname = fullname;
-  }
+  if (fullname) entry.fullname = fullname;
   entry.lastSeen = Date.now();
 }
 
@@ -116,15 +118,12 @@ function removeOnlineSocket(userId, socketId) {
 
   if (entry.socketIds.size === 0) {
     onlineUsers.delete(key);
-    return true; // last socket gone
+    return true;
   }
 
-  return false; // still has other sockets
+  return false;
 }
 
-// -------------------------------------------------------
-// Presence broadcast helpers
-// -------------------------------------------------------
 function broadcastStatusUpdate(userId, { online, away }) {
   const idStr = toStr(userId);
   if (!idStr) return;
@@ -141,7 +140,6 @@ function broadcastPresenceOnline(userId) {
   if (!idStr) return;
 
   console.log(`[presence] User online: userId=${idStr}`);
-
   broadcastStatusUpdate(idStr, { online: true, away: false });
   io.emit("presence:online", { user_id: idStr });
 }
@@ -151,13 +149,12 @@ function broadcastPresenceOffline(userId) {
   if (!idStr) return;
 
   console.log(`[presence] User offline: userId=${idStr}`);
-
   broadcastStatusUpdate(idStr, { online: false, away: false });
   io.emit("presence:offline", { user_id: idStr });
 }
 
 // -------------------------------------------------------
-// Blocking helper (Postgres)
+// Blocked helper
 // -------------------------------------------------------
 async function isBlocked(receiverId, senderId) {
   const result = await db.query(
@@ -167,15 +164,12 @@ async function isBlocked(receiverId, senderId) {
   return result.rows.length > 0;
 }
 
-// -------------------------------------------------------
-// DND helper
-// -------------------------------------------------------
 function isDND(userId) {
   return dndState.get(toStr(userId)) === true;
 }
 
 // -------------------------------------------------------
-// Presence sync for PresenceClient.js
+// Presence sync
 // -------------------------------------------------------
 function registerPresenceSync(socket) {
   socket.on("presence:get", () => {
@@ -194,7 +188,7 @@ function registerPresenceSync(socket) {
 }
 
 // -------------------------------------------------------
-// Typing + recording events
+// Typing + recording
 // -------------------------------------------------------
 function registerTypingAndRecording(socket, getCurrentUserId) {
   const safeId = (v) => toStr(v || getCurrentUserId());
@@ -251,7 +245,7 @@ function registerTypingAndRecording(socket, getCurrentUserId) {
 }
 
 // -------------------------------------------------------
-// Audio messaging + voicemail routing
+// Audio messaging + voicemail
 // -------------------------------------------------------
 function registerAudioMessaging(socket, getCurrentUserId) {
   socket.on("message:audio", async ({ from, to, url }) => {
@@ -289,16 +283,11 @@ io.on("connection", (socket) => {
 
   let currentUserId = null;
 
-  // Presence list support
   registerPresenceSync(socket);
 
-  // FRONTEND REGISTRATION
   socket.on("session:init", ({ userId, fullname }) => {
     const uid = toStr(userId);
-    if (!uid) {
-      console.warn("[socket] session:init with invalid userId:", userId);
-      return;
-    }
+    if (!uid) return;
 
     currentUserId = uid;
     socket.userId = uid;
@@ -312,7 +301,6 @@ io.on("connection", (socket) => {
     broadcastPresenceOnline(uid);
   });
 
-  // Legacy registration (if any old clients still use 'register')
   socket.on("register", ({ userId, fullname }) => {
     const uid = toStr(userId);
     if (!uid) return;
@@ -324,14 +312,11 @@ io.on("connection", (socket) => {
     socket.join(uid);
     addOnlineUser(uid, socket.id, fullname || null);
 
-    console.log(
-      `[socket] REGISTERED (legacy) userId=${uid} on socket=${socket.id}`
-    );
+    console.log(`[socket] REGISTERED (legacy) userId=${uid} on socket=${socket.id}`);
 
     broadcastPresenceOnline(uid);
   });
 
-  // REAL-TIME PROFILE UPDATE
   socket.on("profile:update", (data) => {
     const userId = socket.userId;
     if (!userId) return;
@@ -342,29 +327,21 @@ io.on("connection", (socket) => {
     });
   });
 
-  // DND toggle
   socket.on("dnd:update", ({ userId, active }) => {
     const uid = toStr(userId || socket.userId);
     if (!uid) return;
     dndState.set(uid, !!active);
   });
 
-  // Typing + recording
   registerTypingAndRecording(socket, () => currentUserId);
-
-  // Audio messaging
   registerAudioMessaging(socket, () => currentUserId);
 
-  // WebRTC signaling + presence hooks
   registerWebRTCHandlers(io, socket, { isBlocked, isDND, db });
 
-  // Disconnect
   socket.on("disconnect", () => {
     const uid = currentUserId || socket.userId || null;
 
-    console.log(
-      `[webrtc] Socket disconnected: ${socket.id} (userId=${uid || "unknown"})`
-    );
+    console.log(`[webrtc] Socket disconnected: ${socket.id} (userId=${uid || "unknown"})`);
 
     if (!uid) return;
 
@@ -372,15 +349,13 @@ io.on("connection", (socket) => {
     if (lastSocketGone) {
       broadcastPresenceOffline(uid);
     } else {
-      console.log(
-        `[presence] Not marking offline; other active sockets exist for userId=${uid}`
-      );
+      console.log(`[presence] Not marking offline; other active sockets exist for userId=${uid}`);
     }
   });
 });
 
 // -------------------------------------------------------
-// PHP → WebSocket bridge for profile updates
+// PHP → WebSocket bridge
 // -------------------------------------------------------
 app.post("/profile-update", (req, res) => {
   io.emit("profile:updated", req.body);
@@ -388,7 +363,7 @@ app.post("/profile-update", (req, res) => {
 });
 
 // -------------------------------------------------------
-// Voicemail list API (Postgres)
+// Voicemail list API
 // -------------------------------------------------------
 app.get("/api/voicemail/list", async (req, res) => {
   try {
@@ -414,149 +389,7 @@ app.get("/api/voicemail/list", async (req, res) => {
 });
 
 // -------------------------------------------------------
-// Call Log: Fetch enriched row (same shape as load.php) — Postgres
-// -------------------------------------------------------
-async function getEnrichedCallLog(db, logId, viewerId) {
-  const result = await db.query(
-    `
-    SELECT 
-      cl.id,
-      cl.caller_id,
-      cl.receiver_id,
-      cl.call_type,
-      cl.status,
-      cl.duration,
-      cl.timestamp,
-
-      uc.fullname AS caller_name,
-      uc.avatar   AS caller_avatar,
-
-      ur.fullname AS receiver_name,
-      ur.avatar   AS receiver_avatar,
-
-      CASE
-        WHEN cl.caller_id = $1 THEN 'outgoing'
-        ELSE 'incoming'
-      END AS direction,
-
-      CASE
-        WHEN cl.caller_id = $2 THEN cl.receiver_id
-        ELSE cl.caller_id
-      END AS other_party_id,
-
-      (
-        SELECT pm.message
-        FROM private_messages pm
-        WHERE 
-          (
-            pm.sender_id = $3 
-            AND pm.receiver_id = 
-              CASE WHEN cl.caller_id = $4 THEN cl.receiver_id ELSE cl.caller_id END
-          )
-          OR
-          (
-            pm.sender_id = 
-              CASE WHEN cl.caller_id = $5 THEN cl.receiver_id ELSE cl.caller_id END
-            AND pm.receiver_id = $6
-          )
-        ORDER BY pm.created_at DESC
-        LIMIT 1
-      ) AS last_message,
-
-      (
-        SELECT pm.created_at
-        FROM private_messages pm
-        WHERE 
-          (
-            pm.sender_id = $7 
-            AND pm.receiver_id = 
-              CASE WHEN cl.caller_id = $8 THEN cl.receiver_id ELSE cl.caller_id END
-          )
-          OR
-          (
-            pm.sender_id = 
-              CASE WHEN cl.caller_id = $9 THEN cl.receiver_id ELSE cl.caller_id END
-            AND pm.receiver_id = $10
-          )
-        ORDER BY pm.created_at DESC
-        LIMIT 1
-      ) AS last_message_time,
-
-      (
-        SELECT pm.sender_id
-        FROM private_messages pm
-        WHERE 
-          (
-            pm.sender_id = $11 
-            AND pm.receiver_id = 
-              CASE WHEN cl.caller_id = $12 THEN cl.receiver_id ELSE cl.caller_id END
-          )
-          OR
-          (
-            pm.sender_id = 
-              CASE WHEN cl.caller_id = $13 THEN cl.receiver_id ELSE cl.caller_id END
-            AND pm.receiver_id = $14
-          )
-        ORDER BY pm.created_at DESC
-        LIMIT 1
-      ) AS last_message_sender_id
-
-    FROM call_logs cl
-    LEFT JOIN users uc ON cl.caller_id = uc.user_id
-    LEFT JOIN users ur ON cl.receiver_id = ur.user_id
-    WHERE cl.id = $15
-    LIMIT 1
-    `,
-    [
-      viewerId,
-      viewerId,
-      viewerId,
-      viewerId,
-      viewerId,
-      viewerId,
-      viewerId,
-      viewerId,
-      viewerId,
-      viewerId,
-      viewerId,
-      viewerId,
-      viewerId,
-      viewerId,
-      logId,
-    ]
-  );
-
-  return result.rows[0] || null;
-}
-
-// -------------------------------------------------------
-// PHP → Node: New Call Log Created
-// -------------------------------------------------------
-app.post("/call-log/new", async (req, res) => {
-  try {
-    const { id, userId } = req.body;
-
-    if (!id || !userId) {
-      return res.status(400).json({ error: "Missing id or userId" });
-    }
-
-    const log = await getEnrichedCallLog(db, id, userId);
-    if (!log) {
-      return res.status(404).json({ error: "Log not found" });
-    }
-
-    io.to(String(log.caller_id)).emit("call:log:add", log);
-    io.to(String(log.receiver_id)).emit("call:log:add", log);
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("[call-log:new] Error:", err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-// -------------------------------------------------------
-// Call logs API (Postgres)
+// Call logs API
 // -------------------------------------------------------
 app.get("/api/call-logs", async (req, res) => {
   try {
@@ -605,13 +438,14 @@ app.get("/NewApp/get-ice", async (req, res) => {
 });
 
 // -------------------------------------------------------
-// Start server (Render will inject PORT)
+// Start server
 // -------------------------------------------------------
 const PORT = process.env.PORT || 3001;
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Realtime server listening on port ${PORT}`);
 });
+
 
 
 
