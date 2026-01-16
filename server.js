@@ -35,7 +35,6 @@ app.use(express.json());
 const server = http.createServer(app);
 
 const allowedOrigins = [
-  // Local dev
   "http://localhost",
   "http://localhost:3000",
   "http://localhost:3001",
@@ -43,15 +42,14 @@ const allowedOrigins = [
   "http://127.0.0.1:3000",
   "http://127.0.0.1:3001",
 
-  // Dev tunnels
   "https://1r8lbgk7-80.use.devtunnels.ms",
   "https://efficient-prefer-rules-lead.trycloudflare.com",
 
-  // Render frontend
   "https://letsee-vv23.onrender.com",
-
-  // Render backend (if called directly)
   "https://letsee-backend.onrender.com",
+
+  // ⭐ ADD THIS
+  "https://penny4thought708.github.io",
 ];
 
 app.use(
@@ -608,6 +606,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Realtime server listening on port ${PORT}`);
 });
+
 
 
 
