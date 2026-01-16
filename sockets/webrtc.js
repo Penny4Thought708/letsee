@@ -1,9 +1,17 @@
 // -------------------------------------------------------
-// sockets/webrtc.js — FULLY CORRECTED (Two‑Row Logging)
+// sockets/webrtc.js — Postgres-ready, two-row call logging
 // -------------------------------------------------------
 let loadedFrom = "unknown";
-try { loadedFrom = import.meta.url; } catch {}
+try {
+  loadedFrom = import.meta.url;
+} catch {}
 
+/**
+ * Expects helpers to provide:
+ * - db: a pg.Pool or compatible client with db.query(text, params) → { rows }
+ * - isBlocked(userId, otherUserId): Promise<boolean>
+ * - isDND(userId): boolean or function returning boolean
+ */
 export default function registerWebRTCHandlers(io, socket, helpers) {
   const { isBlocked, isDND, db } = helpers;
   const toStr = (v) => (v == null ? null : String(v));
@@ -60,20 +68,21 @@ export default function registerWebRTCHandlers(io, socket, helpers) {
   }
 
   // -------------------------------------------------------
-  // Utility: fetch identity (avatar + name)
+  // Utility: fetch identity (avatar + name) from Postgres
   // -------------------------------------------------------
   async function getUserIdentity(userId) {
     const uid = toStr(userId);
     if (!uid) return null;
 
     try {
-      const [rows] = await db.query(
-        "SELECT user_id, fullname, avatar FROM users WHERE user_id = ? LIMIT 1",
+      const result = await db.query(
+        "SELECT user_id, fullname, avatar FROM users WHERE user_id = $1 LIMIT 1",
         [uid]
       );
-      if (!rows.length) return null;
 
-      const row = rows[0];
+      if (!result.rows || result.rows.length === 0) return null;
+
+      const row = result.rows[0];
       return {
         user_id: String(row.user_id),
         fullname: row.fullname || null,
@@ -158,7 +167,7 @@ export default function registerWebRTCHandlers(io, socket, helpers) {
       }
 
       // ---------------------------------------------------
-      // END: authoritative call logging (TWO ROWS)
+      // END: authoritative call logging (TWO ROWS, Postgres)
       // ---------------------------------------------------
       if (type === "end") {
         const record = endCallRecord(fromId);
@@ -181,68 +190,61 @@ export default function registerWebRTCHandlers(io, socket, helpers) {
             status = "ended";
           }
 
-          // ---------------------------------------------------
-          // INSERT TWO ROWS (caller + receiver)
-          // ---------------------------------------------------
           try {
             // Caller perspective
-            const [callerRow] = await db.query(
+            const callerResult = await db.query(
               `INSERT INTO call_logs 
                (caller_id, receiver_id, call_type, direction, status, duration, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-              [
-                callerId,
-                receiverId,
-                callType,
-                "outgoing",
-                status,
-                duration,
-              ]
+               VALUES ($1, $2, $3, $4, $5, $6, NOW())
+               RETURNING id`,
+              [callerId, receiverId, callType, "outgoing", status, duration]
             );
+
+            const callerLogId =
+              callerResult.rows && callerResult.rows[0]
+                ? callerResult.rows[0].id
+                : null;
 
             // Receiver perspective
-            const [receiverRow] = await db.query(
+            const receiverResult = await db.query(
               `INSERT INTO call_logs 
                (caller_id, receiver_id, call_type, direction, status, duration, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-              [
-                callerId,
-                receiverId,
-                callType,
-                "incoming",
-                status,
-                duration,
-              ]
+               VALUES ($1, $2, $3, $4, $5, $6, NOW())
+               RETURNING id`,
+              [callerId, receiverId, callType, "incoming", status, duration]
             );
 
-            // ---------------------------------------------------
-            // Emit real‑time updates to both users
-            // ---------------------------------------------------
+            const receiverLogId =
+              receiverResult.rows && receiverResult.rows[0]
+                ? receiverResult.rows[0].id
+                : null;
+
+            const nowIso = new Date().toISOString();
+
             const enrichedCaller = {
-              id: callerRow.insertId,
+              id: callerLogId,
               caller_id: callerId,
               receiver_id: receiverId,
               call_type: callType,
               direction: "outgoing",
               status,
               duration,
-              timestamp: new Date().toISOString(),
+              timestamp: nowIso,
             };
 
             const enrichedReceiver = {
-              id: receiverRow.insertId,
+              id: receiverLogId,
               caller_id: callerId,
               receiver_id: receiverId,
               call_type: callType,
               direction: "incoming",
               status,
               duration,
-              timestamp: new Date().toISOString(),
+              timestamp: nowIso,
             };
 
             deliverToUser(callerId, "call:log:add", enrichedCaller);
             deliverToUser(receiverId, "call:log:add", enrichedReceiver);
-
           } catch (err) {
             console.error("[webrtc] Call log error:", err);
           }
@@ -277,6 +279,8 @@ export default function registerWebRTCHandlers(io, socket, helpers) {
     }
   });
 }
+
+
 
 
 
