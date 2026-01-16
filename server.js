@@ -32,7 +32,7 @@ const db = new Pool({
 const app = express();
 app.use(express.json());
 
-import authRouter from "./auth/login";
+import authRouter from "./auth/login.js";
 app.use("/auth", authRouter);
 
 const server = http.createServer(app);
@@ -613,6 +613,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Realtime server listening on port ${PORT}`);
 });
+
 
 
 
