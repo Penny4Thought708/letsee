@@ -20,7 +20,13 @@ router.post("/login", async (req, res) => {
 
     const user = result.rows[0];
 
-    const match = await bcrypt.compare(password, user.password);
+    // ⭐ Fix PHP → Node bcrypt prefix
+    let hash = user.password;
+    if (hash.startsWith("$2y$")) {
+      hash = "$2b$" + hash.substring(4);
+    }
+
+    const match = await bcrypt.compare(password, hash);
     if (!match) {
       return res.json({ success: false, error: "Password Incorrect" });
     }
@@ -47,5 +53,6 @@ router.post("/login", async (req, res) => {
     return res.json({ success: false, error: "Server error" });
   }
 });
+
 
 export default router;
