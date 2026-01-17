@@ -1,0 +1,17 @@
+// POST /api/profile/avatar
+router.post("/profile/avatar", authMiddleware, upload.single("avatar"), async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    await db.query(`
+      UPDATE users
+      SET avatar = $1
+      WHERE user_id = $2
+    `, [req.file.filename, userId]);
+
+    res.json({ success: true, avatar: req.file.filename });
+
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
