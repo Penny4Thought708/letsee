@@ -445,6 +445,44 @@ app.get("/api/call-logs", async (req, res) => {
     res.status(500).json({ error: "Database error" });
   }
 });
+// -------------------------------------------------------
+// Contacts API
+// -------------------------------------------------------
+app.get("/api/contacts", async (req, res) => {
+  try {
+    // Load all contacts for the logged-in user
+    // You can scope this later using req.user.id if needed
+    const contactsResult = await db.query(
+      `SELECT 
+         id AS contact_id,
+         fullname AS contact_name,
+         phone,
+         avatar_url
+       FROM contacts
+       ORDER BY fullname ASC`
+    );
+
+    // Blocked contacts (optional)
+    const blockedResult = await db.query(
+      `SELECT 
+         b.blocked_id AS contact_id,
+         u.fullname AS contact_name,
+         u.avatar_url
+       FROM blocked_contacts b
+       JOIN users u ON u.id = b.blocked_id
+       ORDER BY u.fullname ASC`
+    );
+
+    res.json({
+      contacts: contactsResult.rows || [],
+      blocked: blockedResult.rows || []
+    });
+
+  } catch (err) {
+    console.error("[contacts] DB error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
 
 // -------------------------------------------------------
 // ICE Server Route (Xirsys TURN/STUN)
@@ -489,6 +527,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Realtime server listening on port ${PORT}`);
 });
+
 
 
 
