@@ -1,0 +1,18 @@
+// PUT /api/profile/update
+router.put("/profile/update", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { fullname, email, bio, phone } = req.body;
+
+    await db.query(`
+      UPDATE users
+      SET fullname = $1, email = $2, bio = $3, phone = $4
+      WHERE user_id = $5
+    `, [fullname, email, bio, phone, userId]);
+
+    res.json({ success: true });
+
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
