@@ -1,25 +1,23 @@
 // -------------------------------------------------------
-// server.js — Modular Realtime Backend (WebRTC + Presence + Voicemail)
+// server.js — Realtime Backend (WebRTC + Presence + Voicemail + Auth)
 // Postgres / Neon version
 // -------------------------------------------------------
 
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
-
 import cors from "cors";
-import cookieParser from "cookie-parser";   // ⭐ REQUIRED FOR req.cookies
-import WaveformData from "waveform-data";
+import cookieParser from "cookie-parser";
 import fs from "fs";
-
+import WaveformData from "waveform-data";
 import registerWebRTCHandlers from "./sockets/webrtc.js";
+
+import pkg from "pg";
+const { Pool } = pkg;
 
 // -------------------------------------------------------
 // Database (Postgres / Neon)
 // -------------------------------------------------------
-import pkg from "pg";
-const { Pool } = pkg;
-
 const db = new Pool({
   connectionString: process.env.DB_URL,
   ssl: { rejectUnauthorized: false },
@@ -32,7 +30,7 @@ const app = express();
 const server = http.createServer(app);
 
 // -------------------------------------------------------
-// CORS (must allow GitHub Pages + Render + localhost)
+// CORS (GitHub Pages + Render + localhost)
 // -------------------------------------------------------
 const allowedOrigins = [
   "http://localhost",
@@ -48,25 +46,31 @@ const allowedOrigins = [
   "https://letsee-vv23.onrender.com",
   "https://letsee-backend.onrender.com",
 
-  // ⭐ REQUIRED FOR GitHub Pages
+  // ⭐ GitHub Pages
   "https://penny4thought708.github.io",
 ];
 
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
+app.set("trust proxy", 1);
 app.use(express.json());
-app.use(cookieParser());   // ⭐ MUST COME BEFORE ROUTES
+app.use(cookieParser());
 
 // -------------------------------------------------------
 // Auth Routes
 // -------------------------------------------------------
 import authRouter from "./auth/login.js";
+import authMeRouter from "./auth/me.js";
+
 app.use("/auth", authRouter);
+app.use("/auth", authMeRouter);
 
 // -------------------------------------------------------
 // Socket.IO
@@ -312,7 +316,9 @@ io.on("connection", (socket) => {
     socket.join(uid);
     addOnlineUser(uid, socket.id, fullname || null);
 
-    console.log(`[socket] REGISTERED (legacy) userId=${uid} on socket=${socket.id}`);
+    console.log(
+      `[socket] REGISTERED (legacy) userId=${uid} on socket=${socket.id}`
+    );
 
     broadcastPresenceOnline(uid);
   });
@@ -341,7 +347,9 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     const uid = currentUserId || socket.userId || null;
 
-    console.log(`[webrtc] Socket disconnected: ${socket.id} (userId=${uid || "unknown"})`);
+    console.log(
+      `[webrtc] Socket disconnected: ${socket.id} (userId=${uid || "unknown"})`
+    );
 
     if (!uid) return;
 
@@ -349,7 +357,9 @@ io.on("connection", (socket) => {
     if (lastSocketGone) {
       broadcastPresenceOffline(uid);
     } else {
-      console.log(`[presence] Not marking offline; other active sockets exist for userId=${uid}`);
+      console.log(
+        `[presence] Not marking offline; other active sockets exist for userId=${uid}`
+      );
     }
   });
 });
@@ -389,7 +399,7 @@ app.get("/api/voicemail/list", async (req, res) => {
 });
 
 // -------------------------------------------------------
-// Call logs API
+// Call logs API (simple global list; you can later scope by user)
 // -------------------------------------------------------
 app.get("/api/call-logs", async (req, res) => {
   try {
@@ -445,6 +455,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Realtime server listening on port ${PORT}`);
 });
+
 
 
 
