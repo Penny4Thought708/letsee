@@ -1,0 +1,17 @@
+// POST /api/calls/log
+router.post("/calls/log", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { other_id, type, duration, direction, status } = req.body;
+
+    await db.query(`
+      INSERT INTO call_logs (user_id, other_id, type, duration, direction, status)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [userId, other_id, type, duration, direction, status]);
+
+    res.json({ success: true });
+
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
