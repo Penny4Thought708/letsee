@@ -1,0 +1,19 @@
+// POST /api/messages/react
+router.post("/messages/react", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { message_id, reaction } = req.body;
+
+    await db.query(`
+      INSERT INTO message_reactions (message_id, user_id, reaction)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (message_id, user_id)
+      DO UPDATE SET reaction = EXCLUDED.reaction
+    `, [message_id, userId, reaction]);
+
+    res.json({ success: true });
+
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
