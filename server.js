@@ -39,10 +39,6 @@ const allowedOrigins = [
   "http://127.0.0.1",
   "http://127.0.0.1:3000",
   "http://127.0.0.1:3001",
-
-  "https://1r8lbgk7-80.use.devtunnels.ms",
-  "https://efficient-prefer-rules-lead.trycloudflare.com",
-
   "https://letsee-vv23.onrender.com",
   "https://letsee-backend.onrender.com",
 
@@ -323,23 +319,34 @@ io.on("connection", (socket) => {
     broadcastPresenceOnline(uid);
   });
 
-  socket.on("register", ({ userId, fullname }) => {
-    const uid = toStr(userId);
-    if (!uid) return;
+socket.on("register", (data = {}) => {
+  if (!data || typeof data !== "object") {
+    console.warn("[socket] register called with invalid payload:", data);
+    return;
+  }
 
-    currentUserId = uid;
-    socket.userId = uid;
-    socket.fullname = fullname || null;
+  const { userId, fullname } = data;
+  const uid = toStr(userId);
 
-    socket.join(uid);
-    addOnlineUser(uid, socket.id, fullname || null);
+  if (!uid) {
+    console.warn("[socket] register called without userId:", data);
+    return;
+  }
 
-    console.log(
-      `[socket] REGISTERED (legacy) userId=${uid} on socket=${socket.id}`
-    );
+  currentUserId = uid;
+  socket.userId = uid;
+  socket.fullname = fullname || null;
 
-    broadcastPresenceOnline(uid);
-  });
+  socket.join(uid);
+  addOnlineUser(uid, socket.id, fullname || null);
+
+  console.log(
+    `[socket] REGISTERED (legacy) userId=${uid} on socket=${socket.id}`
+  );
+
+  broadcastPresenceOnline(uid);
+});
+
 
   socket.on("profile:update", (data) => {
     const userId = socket.userId;
@@ -482,6 +489,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Realtime server listening on port ${PORT}`);
 });
+
 
 
 
