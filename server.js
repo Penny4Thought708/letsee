@@ -59,9 +59,27 @@ app.use(
   })
 );
 
+// -------------------------------------------------------
+// Preflight handler (REQUIRED for GitHub Pages → Render)
+// -------------------------------------------------------
+app.options("*", (req, res) => {
+  res.header("Access-Control-Allow-Origin", "https://penny4thought708.github.io");
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.sendStatus(200);
+});
+
 app.set("trust proxy", 1);
 app.use(express.json());
 app.use(cookieParser());
+
+// -------------------------------------------------------
+// Health Route (for wake-up pinger)
+// -------------------------------------------------------
+app.get("/health", (req, res) => {
+  res.json({ ok: true, uptime: process.uptime() });
+});
 
 // -------------------------------------------------------
 // Auth Routes
@@ -399,7 +417,7 @@ app.get("/api/voicemail/list", async (req, res) => {
 });
 
 // -------------------------------------------------------
-// Call logs API (simple global list; you can later scope by user)
+// Call logs API
 // -------------------------------------------------------
 app.get("/api/call-logs", async (req, res) => {
   try {
@@ -448,6 +466,15 @@ app.get("/NewApp/get-ice", async (req, res) => {
 });
 
 // -------------------------------------------------------
+// Self‑ping to keep Render awake (every 5 minutes)
+// -------------------------------------------------------
+setInterval(() => {
+  fetch("https://letsee-backend.onrender.com/health")
+    .then(() => console.log("[ping] backend awake"))
+    .catch(() => console.log("[ping] backend sleeping"));
+}, 5 * 60 * 1000);
+
+// -------------------------------------------------------
 // Start server
 // -------------------------------------------------------
 const PORT = process.env.PORT || 3001;
@@ -455,6 +482,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Realtime server listening on port ${PORT}`);
 });
+
 
 
 
