@@ -80,3 +80,4 @@ router.get("/contacts", authMiddleware, async (req, res) => {
     res.json({ contacts: [], blocked: [], error: err.message });
   }
 });
+
