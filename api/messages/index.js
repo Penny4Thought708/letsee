@@ -1,6 +1,6 @@
 // api/messages/index.js
 import express from "express";
-import authMiddleware from "../middleware/authMiddleware.js";
+import authMiddleware from "../../letsee/middleware/authMiddleware.js";
 
 import send from "./send.js";
 import thread from "./thread.js";
