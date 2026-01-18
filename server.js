@@ -84,18 +84,149 @@ app.use("/auth", authRouter);
 app.use("/auth", authMeRouter);
 
 // -------------------------------------------------------
-// API Routers (Contacts, Messages, Voicemail, Call Logs)
+// Contacts API (inline version)
 // -------------------------------------------------------
-import contactsRouter from "./routes/contacts.js";
-import messagesRouter from "./routes/messages.js";
-import voicemailRouter from "./routes/voicemail.js";
-import callLogsRouter from "./routes/callLogs.js";
+app.get("/api/contacts", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
 
-// ⭐ Protected API Routes
-app.use("/api/contacts", authMiddleware, contactsRouter);
-app.use("/api/messages", authMiddleware, messagesRouter);
-app.use("/api/voicemail", authMiddleware, voicemailRouter);
-app.use("/api/call-logs", authMiddleware, callLogsRouter);
+    const contactsResult = await db.query(
+      `SELECT 
+         id AS contact_id,
+         fullname AS contact_name,
+         email AS contact_email,
+         phone AS contact_phone,
+         avatar_url AS contact_avatar,
+         banner_url AS contact_banner,
+         bio AS contact_bio,
+         website AS contact_website,
+         twitter AS contact_twitter,
+         instagram AS contact_instagram,
+         show_online AS contact_show_online,
+         allow_messages AS contact_allow_messages
+       FROM contacts
+       WHERE owner_id = $1
+       ORDER BY fullname ASC`,
+      [userId]
+    );
+
+    const blockedResult = await db.query(
+      `SELECT 
+         b.blocked_id AS contact_id,
+         u.fullname AS contact_name,
+         u.email AS contact_email,
+         u.avatar_url AS contact_avatar
+       FROM blocked_contacts b
+       JOIN users u ON u.id = b.blocked_id
+       WHERE b.user_id = $1
+       ORDER BY u.fullname ASC`,
+      [userId]
+    );
+
+    res.json({
+      contacts: contactsResult.rows || [],
+      blocked: blockedResult.rows || []
+    });
+
+  } catch (err) {
+    console.error("[contacts] DB error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// -------------------------------------------------------
+// Messages API (inline version)
+// -------------------------------------------------------
+app.get("/api/messages/thread/:contactId", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const contactId = req.params.contactId;
+
+    const result = await db.query(
+      `SELECT *
+       FROM messages
+       WHERE (sender_id = $1 AND receiver_id = $2)
+          OR (sender_id = $2 AND receiver_id = $1)
+       ORDER BY id ASC`,
+      [userId, contactId]
+    );
+
+    res.json({ messages: result.rows });
+  } catch (err) {
+    console.error("[messages] DB error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+app.post("/api/messages/send", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { to, text } = req.body;
+
+    const result = await db.query(
+      `INSERT INTO messages (sender_id, receiver_id, text)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [userId, to, text]
+    );
+
+    res.json({ success: true, message: result.rows[0] });
+  } catch (err) {
+    console.error("[messages] send error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+// -------------------------------------------------------
+// Voicemail API (inline version)
+// -------------------------------------------------------
+app.get("/api/voicemail/list", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await db.query(
+      `SELECT id, user_id, from_id, audio_url, transcript, peaks_json, created_at, listened
+       FROM voicemails
+       WHERE user_id = $1
+       ORDER BY id DESC
+       LIMIT 100`,
+      [userId]
+    );
+
+    res.json({ voicemails: result.rows });
+  } catch (err) {
+    console.error("[voicemail] Error loading list:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+app.post("/api/voicemail/mark-listened", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.body;
+
+    await db.query(
+      `UPDATE voicemails SET listened = 1 WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[voicemail] mark-listened error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+app.post("/api/voicemail/delete", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.body;
+
+    await db.query(`DELETE FROM voicemails WHERE id = $1`, [id]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[voicemail] delete error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
 
 // -------------------------------------------------------
 // Socket.IO Setup
@@ -450,6 +581,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Realtime server listening on port ${PORT}`);
 });
+
 
 
 
