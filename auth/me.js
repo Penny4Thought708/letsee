@@ -1,3 +1,4 @@
+// auth/me.js
 import express from "express";
 import jwt from "jsonwebtoken";
 import { Pool } from "pg";
@@ -10,14 +11,17 @@ const db = new Pool({
 
 router.get("/me", async (req, res) => {
   try {
-    const token = req.cookies?.session;
-    if (!token) return res.status(401).json({ success: false, error: "No session" });
+    // FIX: read the correct cookie name
+    const token = req.cookies?.token;
+    if (!token) {
+      return res.status(401).json({ success: false, error: "No session" });
+    }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.user_id;
 
     const result = await db.query(
-      "SELECT user_id, fullname, avatar FROM users WHERE user_id = $1 LIMIT 1",
+      "SELECT user_id, fullname, email, avatar FROM users WHERE user_id = $1 LIMIT 1",
       [userId]
     );
 
@@ -37,3 +41,4 @@ router.get("/me", async (req, res) => {
 });
 
 export default router;
+
