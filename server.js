@@ -1,6 +1,6 @@
 // -------------------------------------------------------
 // server.js — Realtime Backend (WebRTC + Presence + Voicemail + Auth)
-// Postgres / Neon version
+// Postgres / Neon version — Polished & Organized
 // -------------------------------------------------------
 
 import express from "express";
@@ -42,8 +42,6 @@ const allowedOrigins = [
   "http://127.0.0.1:3001",
   "https://letsee-vv23.onrender.com",
   "https://letsee-backend.onrender.com",
-
-  // ⭐ GitHub Pages
   "https://penny4thought708.github.io",
 ];
 
@@ -56,9 +54,7 @@ app.use(
   })
 );
 
-// -------------------------------------------------------
-// Preflight handler (REQUIRED for GitHub Pages → Render)
-// -------------------------------------------------------
+// Preflight (GitHub Pages → Render)
 app.options("*", (req, res) => {
   res.header("Access-Control-Allow-Origin", "https://penny4thought708.github.io");
   res.header("Access-Control-Allow-Credentials", "true");
@@ -72,7 +68,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 // -------------------------------------------------------
-// Health Route (for wake-up pinger)
+// Health Route
 // -------------------------------------------------------
 app.get("/health", (req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
@@ -88,7 +84,21 @@ app.use("/auth", authRouter);
 app.use("/auth", authMeRouter);
 
 // -------------------------------------------------------
-// Socket.IO
+// API Routers (Contacts, Messages, Voicemail, Call Logs)
+// -------------------------------------------------------
+import contactsRouter from "./routes/contacts.js";
+import messagesRouter from "./routes/messages.js";
+import voicemailRouter from "./routes/voicemail.js";
+import callLogsRouter from "./routes/callLogs.js";
+
+// ⭐ Protected API Routes
+app.use("/api/contacts", authMiddleware, contactsRouter);
+app.use("/api/messages", authMiddleware, messagesRouter);
+app.use("/api/voicemail", authMiddleware, voicemailRouter);
+app.use("/api/call-logs", authMiddleware, callLogsRouter);
+
+// -------------------------------------------------------
+// Socket.IO Setup
 // -------------------------------------------------------
 const io = new Server(server, {
   cors: {
@@ -99,7 +109,7 @@ const io = new Server(server, {
 });
 
 // -------------------------------------------------------
-// Presence / DND state
+// Presence / DND State
 // -------------------------------------------------------
 const onlineUsers = new Map();
 const dndState = new Map();
@@ -188,7 +198,7 @@ function isDND(userId) {
 }
 
 // -------------------------------------------------------
-// Presence sync
+// Presence Sync
 // -------------------------------------------------------
 function registerPresenceSync(socket) {
   socket.on("presence:get", () => {
@@ -207,7 +217,7 @@ function registerPresenceSync(socket) {
 }
 
 // -------------------------------------------------------
-// Typing + recording
+// Typing + Recording
 // -------------------------------------------------------
 function registerTypingAndRecording(socket, getCurrentUserId) {
   const safeId = (v) => toStr(v || getCurrentUserId());
@@ -264,7 +274,7 @@ function registerTypingAndRecording(socket, getCurrentUserId) {
 }
 
 // -------------------------------------------------------
-// Audio messaging + voicemail
+// Audio Messaging + Voicemail
 // -------------------------------------------------------
 function registerAudioMessaging(socket, getCurrentUserId) {
   socket.on("message:audio", async ({ from, to, url }) => {
@@ -295,7 +305,7 @@ function registerAudioMessaging(socket, getCurrentUserId) {
 }
 
 // -------------------------------------------------------
-// Socket connection
+// Socket Connection
 // -------------------------------------------------------
 io.on("connection", (socket) => {
   console.log("[socket] Connected:", socket.id);
@@ -320,34 +330,33 @@ io.on("connection", (socket) => {
     broadcastPresenceOnline(uid);
   });
 
-socket.on("register", (data = {}) => {
-  if (!data || typeof data !== "object") {
-    console.warn("[socket] register called with invalid payload:", data);
-    return;
-  }
+  socket.on("register", (data = {}) => {
+    if (!data || typeof data !== "object") {
+      console.warn("[socket] register called with invalid payload:", data);
+      return;
+    }
 
-  const { userId, fullname } = data;
-  const uid = toStr(userId);
+    const { userId, fullname } = data;
+    const uid = toStr(userId);
 
-  if (!uid) {
-    console.warn("[socket] register called without userId:", data);
-    return;
-  }
+    if (!uid) {
+      console.warn("[socket] register called without userId:", data);
+      return;
+    }
 
-  currentUserId = uid;
-  socket.userId = uid;
-  socket.fullname = fullname || null;
+    currentUserId = uid;
+    socket.userId = uid;
+    socket.fullname = fullname || null;
 
-  socket.join(uid);
-  addOnlineUser(uid, socket.id, fullname || null);
+    socket.join(uid);
+    addOnlineUser(uid, socket.id, fullname || null);
 
-  console.log(
-    `[socket] REGISTERED (legacy) userId=${uid} on socket=${socket.id}`
-  );
+    console.log(
+      `[socket] REGISTERED (legacy) userId=${uid} on socket=${socket.id}`
+    );
 
-  broadcastPresenceOnline(uid);
-});
-
+    broadcastPresenceOnline(uid);
+  });
 
   socket.on("profile:update", (data) => {
     const userId = socket.userId;
@@ -399,93 +408,6 @@ app.post("/profile-update", (req, res) => {
 });
 
 // -------------------------------------------------------
-// Voicemail list API
-// -------------------------------------------------------
-app.get("/api/voicemail/list", async (req, res) => {
-  try {
-    const userId = req.query.userId;
-    if (!userId) {
-      return res.status(400).json({ error: "Missing userId" });
-    }
-
-    const result = await db.query(
-      `SELECT id, user_id, from_id, audio_url, transcript, peaks_json, created_at, listened
-       FROM voicemails
-       WHERE user_id = $1
-       ORDER BY id DESC
-       LIMIT 100`,
-      [userId]
-    );
-
-    res.json({ voicemails: result.rows || [] });
-  } catch (err) {
-    console.error("[voicemail] Error loading list:", err);
-    res.status(500).json({ error: "Database error" });
-  }
-});
-
-// -------------------------------------------------------
-// Call logs API
-// -------------------------------------------------------
-app.get("/api/call-logs", async (req, res) => {
-  try {
-    const offset = parseInt(req.query.offset || "0", 10);
-    const limit = parseInt(req.query.limit || "30", 10);
-
-    const result = await db.query(
-      `SELECT * FROM call_logs ORDER BY id DESC LIMIT $1 OFFSET $2`,
-      [limit, offset]
-    );
-
-    res.json({
-      logs: result.rows,
-      hasMore: result.rows.length === limit,
-    });
-  } catch (err) {
-    console.error("[call-logs] DB error:", err);
-    res.status(500).json({ error: "Database error" });
-  }
-});
-// -------------------------------------------------------
-// Contacts API
-// -------------------------------------------------------
-app.get("/api/contacts", async (req, res) => {
-  try {
-    // Load all contacts for the logged-in user
-    // You can scope this later using req.user.id if needed
-    const contactsResult = await db.query(
-      `SELECT 
-         id AS contact_id,
-         fullname AS contact_name,
-         phone,
-         avatar_url
-       FROM contacts
-       ORDER BY fullname ASC`
-    );
-
-    // Blocked contacts (optional)
-    const blockedResult = await db.query(
-      `SELECT 
-         b.blocked_id AS contact_id,
-         u.fullname AS contact_name,
-         u.avatar_url
-       FROM blocked_contacts b
-       JOIN users u ON u.id = b.blocked_id
-       ORDER BY u.fullname ASC`
-    );
-
-    res.json({
-      contacts: contactsResult.rows || [],
-      blocked: blockedResult.rows || []
-    });
-
-  } catch (err) {
-    console.error("[contacts] DB error:", err);
-    res.status(500).json({ error: "Database error" });
-  }
-});
-
-// -------------------------------------------------------
 // ICE Server Route (Xirsys TURN/STUN)
 // -------------------------------------------------------
 app.get("/NewApp/get-ice", async (req, res) => {
@@ -512,7 +434,7 @@ app.get("/NewApp/get-ice", async (req, res) => {
 });
 
 // -------------------------------------------------------
-// Self‑ping to keep Render awake (every 5 minutes)
+// Self‑ping to keep Render awake
 // -------------------------------------------------------
 setInterval(() => {
   fetch("https://letsee-backend.onrender.com/health")
@@ -528,6 +450,8 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Realtime server listening on port ${PORT}`);
 });
+
+
 
 
 
