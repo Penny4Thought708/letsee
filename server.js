@@ -332,6 +332,7 @@ app.get("/api/call-logs", async (req, res) => {
   }
 });
 
+
 // -------------------------------------------------------
 // Socket.IO Setup
 // -------------------------------------------------------
@@ -431,6 +432,11 @@ async function isBlocked(receiverId, senderId) {
 function isDND(userId) {
   return dndState.get(toStr(userId)) === true;
 }
+// -------------------------------------------------------
+// Socket.IO Connection Handler
+// -------------------------------------------------------
+io.on("connection", (socket) => {
+  console.log("[socket] Connected:", socket.id);
 
 // -------------------------------------------------------
 // Presence Sync
@@ -553,6 +559,8 @@ function registerAudioMessaging(socket, getCurrentUserId) {
       broadcastPresenceOffline(uid);
     }
   });
+}); // <-- THIS closes io.on("connection")
+
 
 // -------------------------------------------------------
 // Start Server
@@ -562,6 +570,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
