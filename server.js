@@ -1,6 +1,6 @@
 // -------------------------------------------------------
 // server.js — Realtime Backend (WebRTC + Presence + Voicemail + Auth)
-// Postgres / Neon version — Polished & Organized
+// Postgres / Neon version — Inline Routes Version (Option A)
 // -------------------------------------------------------
 
 import express from "express";
@@ -84,7 +84,7 @@ app.use("/auth", authRouter);
 app.use("/auth", authMeRouter);
 
 // -------------------------------------------------------
-// Contacts API (inline version)
+// ⭐ INLINE CONTACTS API (Option A)
 // -------------------------------------------------------
 app.get("/api/contacts", authMiddleware, async (req, res) => {
   try {
@@ -134,8 +134,88 @@ app.get("/api/contacts", authMiddleware, async (req, res) => {
   }
 });
 
+// Block contact
+app.post("/api/contacts/block", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { contact_id } = req.body;
+
+    await db.query(
+      `INSERT INTO blocked_contacts (user_id, blocked_id)
+       VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [userId, contact_id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[contacts] block error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Unblock contact
+app.post("/api/contacts/unblock", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { contact_id } = req.body;
+
+    await db.query(
+      `DELETE FROM blocked_contacts
+       WHERE user_id = $1 AND blocked_id = $2`,
+      [userId, contact_id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[contacts] unblock error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Delete contact
+app.post("/api/contacts/delete", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { contact_id } = req.body;
+
+    await db.query(
+      `DELETE FROM contacts
+       WHERE owner_id = $1 AND id = $2`,
+      [userId, contact_id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[contacts] delete error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 // -------------------------------------------------------
-// Messages API (inline version)
+// ⭐ INLINE USERS LOOKUP SEARCH
+// -------------------------------------------------------
+app.get("/api/users/search", authMiddleware, async (req, res) => {
+  try {
+    const q = `%${req.query.query || ""}%`;
+
+    const result = await db.query(
+      `SELECT id AS contact_id, fullname AS contact_name, email AS contact_email, avatar_url AS contact_avatar
+       FROM users
+       WHERE fullname ILIKE $1 OR email ILIKE $1
+       LIMIT 20`,
+      [q]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("[lookup] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// -------------------------------------------------------
+// ⭐ INLINE MESSAGES API
 // -------------------------------------------------------
 app.get("/api/messages/thread/:contactId", authMiddleware, async (req, res) => {
   try {
@@ -176,8 +256,9 @@ app.post("/api/messages/send", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Database error" });
   }
 });
+
 // -------------------------------------------------------
-// Voicemail API (inline version)
+// ⭐ INLINE VOICEMAIL API
 // -------------------------------------------------------
 app.get("/api/voicemail/list", authMiddleware, async (req, res) => {
   try {
@@ -224,6 +305,29 @@ app.post("/api/voicemail/delete", authMiddleware, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("[voicemail] delete error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// -------------------------------------------------------
+// ⭐ INLINE CALL LOGS API (already existed)
+// -------------------------------------------------------
+app.get("/api/call-logs", async (req, res) => {
+  try {
+    const offset = parseInt(req.query.offset || "0", 10);
+    const limit = parseInt(req.query.limit || "30", 10);
+
+    const result = await db.query(
+      `SELECT * FROM call_logs ORDER BY id DESC LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+
+    res.json({
+      logs: result.rows,
+      hasMore: result.rows.length === limit,
+    });
+  } catch (err) {
+    console.error("[call-logs] DB error:", err);
     res.status(500).json({ error: "Database error" });
   }
 });
@@ -434,171 +538,31 @@ function registerAudioMessaging(socket, getCurrentUserId) {
     io.to(target).emit("message:audio", { from: sender, url });
   });
 }
-
-// -------------------------------------------------------
-// Socket Connection
-// -------------------------------------------------------
-io.on("connection", (socket) => {
-  console.log("[socket] Connected:", socket.id);
-
-  let currentUserId = null;
-
-  registerPresenceSync(socket);
-
-  socket.on("session:init", ({ userId, fullname }) => {
-    const uid = toStr(userId);
-    if (!uid) return;
-
-    currentUserId = uid;
-    socket.userId = uid;
-    socket.fullname = fullname || null;
-
-    socket.join(uid);
-    addOnlineUser(uid, socket.id, fullname || null);
-
-    console.log(`[socket] REGISTERED userId=${uid} on socket=${socket.id}`);
-
-    broadcastPresenceOnline(uid);
-  });
-
-  socket.on("register", (data = {}) => {
-    if (!data || typeof data !== "object") {
-      console.warn("[socket] register called with invalid payload:", data);
-      return;
-    }
-
-    const { userId, fullname } = data;
-    const uid = toStr(userId);
-
-    if (!uid) {
-      console.warn("[socket] register called without userId:", data);
-      return;
-    }
-
-    currentUserId = uid;
-    socket.userId = uid;
-    socket.fullname = fullname || null;
-
-    socket.join(uid);
-    addOnlineUser(uid, socket.id, fullname || null);
-
-    console.log(
-      `[socket] REGISTERED (legacy) userId=${uid} on socket=${socket.id}`
-    );
-
-    broadcastPresenceOnline(uid);
-  });
-
-  socket.on("profile:update", (data) => {
-    const userId = socket.userId;
-    if (!userId) return;
-
-    socket.broadcast.emit("profile:updated", {
-      user_id: userId,
-      ...data,
-    });
-  });
-
-  socket.on("dnd:update", ({ userId, active }) => {
-    const uid = toStr(userId || socket.userId);
-    if (!uid) return;
-    dndState.set(uid, !!active);
-  });
-
-  registerTypingAndRecording(socket, () => currentUserId);
-  registerAudioMessaging(socket, () => currentUserId);
-
-  registerWebRTCHandlers(io, socket, { isBlocked, isDND, db });
-
+  // -------------------------------------------------------
+  // Handle disconnect
+  // -------------------------------------------------------
   socket.on("disconnect", () => {
-    const uid = currentUserId || socket.userId || null;
+    console.log("[socket] Disconnected:", socket.id);
 
-    console.log(
-      `[webrtc] Socket disconnected: ${socket.id} (userId=${uid || "unknown"})`
-    );
-
+    const uid = socket.userId;
     if (!uid) return;
 
-    const lastSocketGone = removeOnlineSocket(uid, socket.id);
-    if (lastSocketGone) {
+    const becameOffline = removeOnlineSocket(uid, socket.id);
+
+    if (becameOffline) {
       broadcastPresenceOffline(uid);
-    } else {
-      console.log(
-        `[presence] Not marking offline; other active sockets exist for userId=${uid}`
-      );
     }
   });
 });
 
 // -------------------------------------------------------
-// PHP → WebSocket bridge
-// -------------------------------------------------------
-app.post("/profile-update", (req, res) => {
-  io.emit("profile:updated", req.body);
-  res.json({ success: true });
-});
-
-// -------------------------------------------------------
-// ICE Server Route (Xirsys TURN/STUN)
-// -------------------------------------------------------
-app.get("/NewApp/get-ice", async (req, res) => {
-  try {
-    const response = await fetch("https://global.xirsys.net/_turn/MyFirstApp", {
-      method: "PUT",
-      headers: {
-        Authorization:
-          "Basic " +
-          Buffer.from(
-            "TommyYatts:91585c4a-ef29-11f0-a612-0242ac150002"
-          ).toString("base64"),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ format: "urls" }),
-    });
-
-    const data = await response.json();
-    res.json(data);
-  } catch (err) {
-    console.error("ICE route error:", err);
-    res.status(500).json({ error: "ice-failed" });
-  }
-});
-
-// -------------------------------------------------------
-// Self‑ping to keep Render awake
-// -------------------------------------------------------
-setInterval(() => {
-  fetch("https://letsee-backend.onrender.com/health")
-    .then(() => console.log("[ping] backend awake"))
-    .catch(() => console.log("[ping] backend sleeping"));
-}, 5 * 60 * 1000);
-
-// -------------------------------------------------------
-// Start server
+// Start Server
 // -------------------------------------------------------
 const PORT = process.env.PORT || 3001;
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Realtime server listening on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
