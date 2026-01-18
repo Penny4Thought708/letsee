@@ -11,7 +11,8 @@ import cookieParser from "cookie-parser";
 import fs from "fs";
 import WaveformData from "waveform-data";
 import registerWebRTCHandlers from "./sockets/webrtc.js";
-import { authMiddleware } from "./middleware/authMiddleware.js";
+import authMiddleware from "../../middleware/authMiddleware.js";
+
 
 import pkg from "pg";
 const { Pool } = pkg;
@@ -638,6 +639,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
