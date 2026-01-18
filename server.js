@@ -84,55 +84,89 @@ app.use("/auth", authRouter);
 app.use("/auth", authMeRouter);
 
 // -------------------------------------------------------
-// ⭐ INLINE CONTACTS API (Option A)
+// ⭐ INLINE CONTACTS API (Corrected for your schema)
 // -------------------------------------------------------
 app.get("/api/contacts", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const contactsResult = await db.query(
-      `SELECT 
-         id AS contact_id,
-         fullname AS contact_name,
-         email AS contact_email,
-         phone AS contact_phone,
-         avatar_url AS contact_avatar,
-         banner_url AS contact_banner,
-         bio AS contact_bio,
-         website AS contact_website,
-         twitter AS contact_twitter,
-         instagram AS contact_instagram,
-         show_online AS contact_show_online,
-         allow_messages AS contact_allow_messages
-       FROM contacts
-       WHERE owner_id = $1
-       ORDER BY fullname ASC`,
-      [userId]
-    );
+    const { rows } = await db.query(`
+      SELECT 
+        u.user_id        AS contact_id,
+        u.fullname       AS contact_name,
+        u.email          AS contact_email,
+        u.avatar         AS avatar_filename,
+        u.phone          AS contact_phone,
+        u.bio            AS contact_bio,
+        u.banner         AS contact_banner,
+        c.blocked        AS blocked,
+        c.is_favorite    AS is_favorite,
+        c.created_at     AS added_on
+      FROM contacts c
+      JOIN users u ON c.contact_id = u.user_id
+      WHERE c.user_id = $1
+      ORDER BY u.fullname ASC
+    `, [userId]);
 
-    const blockedResult = await db.query(
-      `SELECT 
-         b.blocked_id AS contact_id,
-         u.fullname AS contact_name,
-         u.email AS contact_email,
-         u.avatar_url AS contact_avatar
-       FROM blocked_contacts b
-       JOIN users u ON u.id = b.blocked_id
-       WHERE b.user_id = $1
-       ORDER BY u.fullname ASC`,
-      [userId]
-    );
+    const contacts = [];
+    const blocked = [];
 
-    res.json({
-      contacts: contactsResult.rows || [],
-      blocked: blockedResult.rows || []
-    });
+    const msgQuery = `
+      SELECT 
+        m.message,
+        m.created_at,
+        (
+          SELECT COUNT(*) FROM messages 
+          WHERE receiver_id = $1 AND sender_id = $2 AND seen = 0
+        ) AS unread_count
+      FROM messages m
+      WHERE 
+        (m.sender_id = $2 AND m.receiver_id = $1)
+        OR
+        (m.sender_id = $1 AND m.receiver_id = $2)
+      ORDER BY m.created_at DESC
+      LIMIT 1
+    `;
+
+    for (const row of rows) {
+      const contactId = row.contact_id;
+
+      const msg = await db.query(msgQuery, [userId, contactId]);
+      const last = msg.rows[0] || {};
+
+      const contact = {
+        contact_id: contactId,
+        contact_name: row.contact_name,
+        contact_email: row.contact_email,
+        contact_avatar: row.avatar_filename
+          ? `/uploads/avatars/${row.avatar_filename}`
+          : `/img/defaultUser.png`,
+        contact_phone: row.contact_phone,
+        contact_bio: row.contact_bio,
+        contact_banner: row.contact_banner
+          ? `/uploads/banners/${row.contact_banner}`
+          : `/img/profile-banner.jpg`,
+        is_favorite: row.is_favorite,
+        added_on: row.added_on,
+        online: false,
+
+        last_message: last.message || null,
+        last_message_at: last.created_at || null,
+        unread_count: Number(last.unread_count || 0)
+      };
+
+      if (row.blocked) blocked.push(contact);
+      else contacts.push(contact);
+    }
+
+    res.json({ contacts, blocked, error: null });
 
   } catch (err) {
     console.error("[contacts] DB error:", err);
-    res.status(500).json({ error: "Database error" });
+    res.json({ contacts: [], blocked: [], error: err.message });
   }
 });
+
 
 // Block contact
 app.post("/api/contacts/block", authMiddleware, async (req, res) => {
@@ -570,6 +604,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
