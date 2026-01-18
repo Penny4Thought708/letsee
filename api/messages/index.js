@@ -3,7 +3,7 @@ import auth from "../../middleware/authMiddleware.js";
 
 import send from "./send.js";
 import thread from "./thread.js";
-import markRead from "./markRead.js";
+import markRead from "./mark-read.js";
 import markDelivered from "./markDelivered.js";
 import hide from "./hide.js";
 import restore from "./restore.js";
