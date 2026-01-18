@@ -80,8 +80,11 @@ app.get("/health", (req, res) => {
 import authRouter from "./auth/login.js";
 import authMeRouter from "./auth/me.js";
 
-app.use("/auth", authRouter);
-app.use("/auth", authMeRouter);
+app.use("/api/auth", authRouter);
+app.use("/api/auth", authMeRouter);
+
+import messagesRouter from "./api/messages/index.js";
+app.use("/api/messages", messagesRouter);
 
 // -------------------------------------------------------
 // ⭐ INLINE CONTACTS API (Corrected for your schema)
@@ -635,6 +638,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
