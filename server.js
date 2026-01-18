@@ -227,16 +227,21 @@ app.post("/api/contacts/delete", authMiddleware, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// ⭐ INLINE USERS LOOKUP SEARCH
+// ⭐ INLINE USERS LOOKUP SEARCH (Corrected for your schema)
 // -------------------------------------------------------
 app.get("/api/users/search", authMiddleware, async (req, res) => {
   try {
     const q = `%${req.query.query || ""}%`;
 
     const result = await db.query(
-      `SELECT id AS contact_id, fullname AS contact_name, email AS contact_email, avatar_url AS contact_avatar
+      `SELECT 
+         user_id      AS contact_id,
+         fullname     AS contact_name,
+         email        AS contact_email,
+         avatar       AS contact_avatar
        FROM users
        WHERE fullname ILIKE $1 OR email ILIKE $1
+       ORDER BY fullname ASC
        LIMIT 20`,
       [q]
     );
@@ -248,8 +253,9 @@ app.get("/api/users/search", authMiddleware, async (req, res) => {
   }
 });
 
+
 // -------------------------------------------------------
-// ⭐ INLINE MESSAGES API
+// ⭐ INLINE MESSAGES API (Corrected for your schema)
 // -------------------------------------------------------
 app.get("/api/messages/thread/:contactId", authMiddleware, async (req, res) => {
   try {
@@ -258,7 +264,7 @@ app.get("/api/messages/thread/:contactId", authMiddleware, async (req, res) => {
 
     const result = await db.query(
       `SELECT *
-       FROM messages
+       FROM private_messages
        WHERE (sender_id = $1 AND receiver_id = $2)
           OR (sender_id = $2 AND receiver_id = $1)
        ORDER BY id ASC`,
@@ -278,7 +284,7 @@ app.post("/api/messages/send", authMiddleware, async (req, res) => {
     const { to, text } = req.body;
 
     const result = await db.query(
-      `INSERT INTO messages (sender_id, receiver_id, text)
+      `INSERT INTO private_messages (sender_id, receiver_id, message)
        VALUES ($1, $2, $3)
        RETURNING *`,
       [userId, to, text]
@@ -290,6 +296,7 @@ app.post("/api/messages/send", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Database error" });
   }
 });
+
 
 // -------------------------------------------------------
 // ⭐ INLINE VOICEMAIL API
@@ -344,15 +351,37 @@ app.post("/api/voicemail/delete", authMiddleware, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// ⭐ INLINE CALL LOGS API (already existed)
+// ⭐ INLINE CALL LOGS API (with user avatars)
 // -------------------------------------------------------
-app.get("/api/call-logs", async (req, res) => {
+app.get("/api/call-logs", authMiddleware, async (req, res) => {
   try {
     const offset = parseInt(req.query.offset || "0", 10);
     const limit = parseInt(req.query.limit || "30", 10);
 
     const result = await db.query(
-      `SELECT * FROM call_logs ORDER BY id DESC LIMIT $1 OFFSET $2`,
+      `
+      SELECT 
+        c.id,
+        c.caller_id,
+        caller.fullname   AS caller_name,
+        caller.avatar     AS caller_avatar,
+        
+        c.receiver_id,
+        receiver.fullname AS receiver_name,
+        receiver.avatar   AS receiver_avatar,
+
+        c.call_type,
+        c.direction,
+        c.status,
+        c.duration,
+        c.timestamp,
+        c.created_at
+      FROM call_logs c
+      JOIN users caller   ON caller.user_id   = c.caller_id
+      JOIN users receiver ON receiver.user_id = c.receiver_id
+      ORDER BY c.id DESC
+      LIMIT $1 OFFSET $2
+      `,
       [limit, offset]
     );
 
@@ -360,11 +389,13 @@ app.get("/api/call-logs", async (req, res) => {
       logs: result.rows,
       hasMore: result.rows.length === limit,
     });
+
   } catch (err) {
     console.error("[call-logs] DB error:", err);
     res.status(500).json({ error: "Database error" });
   }
 });
+
 
 
 // -------------------------------------------------------
@@ -604,6 +635,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
