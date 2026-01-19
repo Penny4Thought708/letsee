@@ -1,5 +1,5 @@
 // GET /api/messages/thread/:id
-router.get("/messages/thread/:id", authMiddleware, async (req, res) => {
+router.get("/thread/:id", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const contactId = req.params.id;
