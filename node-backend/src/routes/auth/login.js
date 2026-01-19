@@ -3,7 +3,6 @@ import db from "../../db.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
-
 const router = express.Router();
 
 // ----------------------
@@ -47,7 +46,7 @@ router.post("/login", async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    // ⭐ SET COOKIE (this is what dashboard needs)
+    // Set cookie
     res.cookie("token", token, {
       httpOnly: true,
       secure: true,
@@ -71,7 +70,10 @@ router.post("/login", async (req, res) => {
 // ----------------------
 router.get("/me", async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token =
+      req.cookies.token ||
+      req.headers.authorization?.replace("Bearer ", "");
+
     if (!token) return res.json({ success: false });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
