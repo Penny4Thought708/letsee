@@ -1,24 +1,16 @@
-// -------------------------------------------------------
-// server.js — Realtime Backend (WebRTC + Presence + Voicemail + Auth)
-// Postgres / Neon version — Inline Routes Version (Option A)
-// -------------------------------------------------------
+// server.js — Unified Realtime Backend (Auth + Messages + Voicemail + Contacts + Call Logs + WebRTC)
+// Uses Postgres "messages" table (M1)
 
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import fs from "fs";
-import WaveformData from "waveform-data";
-import registerWebRTCHandlers from "./sockets/webrtc.js";
-import { authMiddleware } from "./middleware/authMiddleware.js";
-
-
-
-
-
-
 import pkg from "pg";
+import path from "path";
+import multer from "multer";
+import jwt from "jsonwebtoken";
+
 const { Pool } = pkg;
 
 // -------------------------------------------------------
@@ -59,9 +51,8 @@ app.use(
   })
 );
 
-// Preflight (GitHub Pages → Render)
 app.options("*", (req, res) => {
-  res.header("Access-Control-Allow-Origin", "https://penny4thought708.github.io");
+  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.header("Access-Control-Allow-Credentials", "true");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -71,6 +62,23 @@ app.options("*", (req, res) => {
 app.set("trust proxy", 1);
 app.use(express.json());
 app.use(cookieParser());
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+// -------------------------------------------------------
+// Auth Middleware
+// -------------------------------------------------------
+function authMiddleware(req, res, next) {
+  const token = req.cookies.token || req.headers.authorization?.replace("Bearer ", "");
+  if (!token) return res.status(401).json({ success: false });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = { user_id: decoded.user_id };
+    next();
+  } catch {
+    return res.status(401).json({ success: false });
+  }
+}
 
 // -------------------------------------------------------
 // Health Route
@@ -82,23 +90,62 @@ app.get("/health", (req, res) => {
 // -------------------------------------------------------
 // Auth Routes
 // -------------------------------------------------------
-import authRouter from "./auth/login.js";
-import authMeRouter from "./auth/me.js";
+app.post("/api/auth/login", async (req, res) => {
+  const { email } = req.body;
+  try {
+    const { rows } = await db.query(
+      "SELECT user_id, fullname, email, avatar FROM users WHERE email=$1 LIMIT 1",
+      [email]
+    );
+    if (!rows[0]) return res.status(401).json({ success: false });
 
-app.use("/api/auth", authRouter);
-app.use("/api/auth", authMeRouter);
+    const user = rows[0];
+    const token = jwt.sign({ user_id: user.user_id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
 
-import messagesRouter from "./api/messages/index.js";
-app.use("/api/messages", messagesRouter);
+    res.cookie("token", token, {
+      httpOnly: true,
+      sameSite: "none",
+      secure: true,
+    });
+
+    res.json({ success: true, user });
+  } catch (err) {
+    console.error("[auth/login] error:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+app.get("/api/auth/me", async (req, res) => {
+  try {
+    const token = req.cookies.token || req.headers.authorization?.replace("Bearer ", "");
+    if (!token) return res.json({ success: false });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const { rows } = await db.query(
+      "SELECT user_id, fullname, email, avatar FROM users WHERE user_id=$1",
+      [decoded.user_id]
+    );
+
+    if (!rows[0]) return res.json({ success: false });
+
+    res.json({ success: true, user: rows[0] });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
 
 // -------------------------------------------------------
-// ⭐ INLINE CONTACTS API (Corrected for your schema)
+// Contacts API
 // -------------------------------------------------------
 app.get("/api/contacts", authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.user_id;
 
-    const { rows } = await db.query(`
+    const { rows } = await db.query(
+      `
       SELECT 
         u.user_id        AS contact_id,
         u.fullname       AS contact_name,
@@ -114,7 +161,9 @@ app.get("/api/contacts", authMiddleware, async (req, res) => {
       JOIN users u ON c.contact_id = u.user_id
       WHERE c.user_id = $1
       ORDER BY u.fullname ASC
-    `, [userId]);
+      `,
+      [userId]
+    );
 
     const contacts = [];
     const blocked = [];
@@ -138,7 +187,6 @@ app.get("/api/contacts", authMiddleware, async (req, res) => {
 
     for (const row of rows) {
       const contactId = row.contact_id;
-
       const msg = await db.query(msgQuery, [userId, contactId]);
       const last = msg.rows[0] || {};
 
@@ -157,10 +205,9 @@ app.get("/api/contacts", authMiddleware, async (req, res) => {
         is_favorite: row.is_favorite,
         added_on: row.added_on,
         online: false,
-
         last_message: last.message || null,
         last_message_at: last.created_at || null,
-        unread_count: Number(last.unread_count || 0)
+        unread_count: Number(last.unread_count || 0),
       };
 
       if (row.blocked) blocked.push(contact);
@@ -168,75 +215,12 @@ app.get("/api/contacts", authMiddleware, async (req, res) => {
     }
 
     res.json({ contacts, blocked, error: null });
-
   } catch (err) {
     console.error("[contacts] DB error:", err);
     res.json({ contacts: [], blocked: [], error: err.message });
   }
 });
 
-
-// Block contact
-app.post("/api/contacts/block", authMiddleware, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { contact_id } = req.body;
-
-    await db.query(
-      `INSERT INTO blocked_contacts (user_id, blocked_id)
-       VALUES ($1, $2)
-       ON CONFLICT DO NOTHING`,
-      [userId, contact_id]
-    );
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("[contacts] block error:", err);
-    res.status(500).json({ error: "Database error" });
-  }
-});
-
-// Unblock contact
-app.post("/api/contacts/unblock", authMiddleware, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { contact_id } = req.body;
-
-    await db.query(
-      `DELETE FROM blocked_contacts
-       WHERE user_id = $1 AND blocked_id = $2`,
-      [userId, contact_id]
-    );
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("[contacts] unblock error:", err);
-    res.status(500).json({ error: "Database error" });
-  }
-});
-
-// Delete contact
-app.post("/api/contacts/delete", authMiddleware, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { contact_id } = req.body;
-
-    await db.query(
-      `DELETE FROM contacts
-       WHERE owner_id = $1 AND id = $2`,
-      [userId, contact_id]
-    );
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("[contacts] delete error:", err);
-    res.status(500).json({ error: "Database error" });
-  }
-});
-
-// -------------------------------------------------------
-// ⭐ INLINE USERS LOOKUP SEARCH (Corrected for your schema)
-// -------------------------------------------------------
 app.get("/api/users/search", authMiddleware, async (req, res) => {
   try {
     const q = `%${req.query.query || ""}%`;
@@ -261,57 +245,104 @@ app.get("/api/users/search", authMiddleware, async (req, res) => {
   }
 });
 
+// -------------------------------------------------------
+// Messages API (M1: messages table)
+// -------------------------------------------------------
+app.get("/api/messages/list", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.user_id;
 
-// -------------------------------------------------------
-// ⭐ INLINE MESSAGES API (Corrected for your schema)
-// -------------------------------------------------------
+    const { rows } = await db.query(
+      `
+      SELECT DISTINCT ON (contact_id)
+        contact_id,
+        contact_name,
+        contact_avatar,
+        last_message,
+        last_message_at
+      FROM message_threads
+      WHERE user_id=$1
+      ORDER BY contact_id, last_message_at DESC
+      `,
+      [userId]
+    );
+
+    res.json({ success: true, threads: rows });
+  } catch (err) {
+    console.error("[messages/list] error:", err);
+    res.status(500).json({ success: false, error: "Database error" });
+  }
+});
+
 app.get("/api/messages/thread/:contactId", authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.user_id;
     const contactId = req.params.contactId;
 
-    const result = await db.query(
-      `SELECT *
-       FROM private_messages
-       WHERE (sender_id = $1 AND receiver_id = $2)
-          OR (sender_id = $2 AND receiver_id = $1)
-       ORDER BY id ASC`,
+    const { rows } = await db.query(
+      `
+      SELECT *
+      FROM messages
+      WHERE 
+        (sender_id=$1 AND receiver_id=$2)
+        OR
+        (sender_id=$2 AND receiver_id=$1)
+      ORDER BY created_at ASC
+      `,
       [userId, contactId]
     );
 
-    res.json({ messages: result.rows });
+    await db.query(
+      `UPDATE messages SET seen=1 WHERE receiver_id=$1 AND sender_id=$2`,
+      [userId, contactId]
+    );
+
+    res.json({ success: true, messages: rows });
   } catch (err) {
-    console.error("[messages] DB error:", err);
-    res.status(500).json({ error: "Database error" });
+    console.error("[messages/thread] error:", err);
+    res.status(500).json({ success: false, error: "Database error" });
   }
+});
+
+const upload = multer({ dest: "uploads/" });
+
+app.post("/api/messages/audio", authMiddleware, upload.single("audio"), (req, res) => {
+  const fileUrl = `/uploads/${req.file.filename}`;
+  res.json({ success: true, url: fileUrl });
 });
 
 app.post("/api/messages/send", authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { to, text } = req.body;
+    const senderId = req.user.user_id;
+    const { receiver_id, message, file, file_url } = req.body;
 
-    const result = await db.query(
-      `INSERT INTO private_messages (sender_id, receiver_id, message)
-       VALUES ($1, $2, $3)
-       RETURNING *`,
-      [userId, to, text]
+    const { rows } = await db.query(
+      `
+      INSERT INTO messages (sender_id, receiver_id, message, file, file_url)
+      VALUES ($1,$2,$3,$4,$5)
+      RETURNING *
+      `,
+      [senderId, receiver_id, message || "", file || 0, file_url || null]
     );
 
-    res.json({ success: true, message: result.rows[0] });
+    const msg = rows[0];
+
+    io.to(`user:${receiver_id}`).emit("message:new", msg);
+    io.to(`user:${senderId}`).emit("message:new", msg);
+
+    res.json({ success: true, ...msg });
   } catch (err) {
-    console.error("[messages] send error:", err);
-    res.status(500).json({ error: "Database error" });
+    console.error("[messages/send] error:", err);
+    res.status(500).json({ success: false, error: "Database error" });
   }
 });
 
-
 // -------------------------------------------------------
-// ⭐ INLINE VOICEMAIL API
+// Voicemail API
 // -------------------------------------------------------
 app.get("/api/voicemail/list", authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.user_id;
 
     const result = await db.query(
       `SELECT id, user_id, from_id, audio_url, transcript, peaks_json, created_at, listened
@@ -322,26 +353,34 @@ app.get("/api/voicemail/list", authMiddleware, async (req, res) => {
       [userId]
     );
 
-    res.json({ voicemails: result.rows });
+    res.json({ success: true, voicemails: result.rows });
   } catch (err) {
-    console.error("[voicemail] Error loading list:", err);
-    res.status(500).json({ error: "Database error" });
+    console.error("[voicemail/list] error:", err);
+    res.status(500).json({ success: false, error: "Database error" });
   }
 });
 
-app.post("/api/voicemail/mark-listened", authMiddleware, async (req, res) => {
+app.post("/api/voicemail/save", authMiddleware, async (req, res) => {
   try {
-    const { id } = req.body;
+    const { userId, fromId, audioUrl } = req.body;
 
-    await db.query(
-      `UPDATE voicemails SET listened = 1 WHERE id = $1`,
-      [id]
+    const { rows } = await db.query(
+      `
+      INSERT INTO voicemails (user_id, from_id, audio_url)
+      VALUES ($1,$2,$3)
+      RETURNING *
+      `,
+      [userId, fromId, audioUrl]
     );
 
-    res.json({ success: true });
+    const vm = rows[0];
+
+    io.to(`user:${userId}`).emit("voicemail:new", vm);
+
+    res.json({ success: true, voicemail: vm });
   } catch (err) {
-    console.error("[voicemail] mark-listened error:", err);
-    res.status(500).json({ error: "Database error" });
+    console.error("[voicemail/save] error:", err);
+    res.status(500).json({ success: false, error: "Database error" });
   }
 });
 
@@ -349,17 +388,30 @@ app.post("/api/voicemail/delete", authMiddleware, async (req, res) => {
   try {
     const { id } = req.body;
 
-    await db.query(`DELETE FROM voicemails WHERE id = $1`, [id]);
+    await db.query(`DELETE FROM voicemails WHERE id=$1`, [id]);
 
     res.json({ success: true });
   } catch (err) {
-    console.error("[voicemail] delete error:", err);
-    res.status(500).json({ error: "Database error" });
+    console.error("[voicemail/delete] error:", err);
+    res.status(500).json({ success: false, error: "Database error" });
+  }
+});
+
+app.post("/api/voicemail/listened", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.body;
+
+    await db.query(`UPDATE voicemails SET listened=1 WHERE id=$1`, [id]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[voicemail/listened] error:", err);
+    res.status(500).json({ success: false, error: "Database error" });
   }
 });
 
 // -------------------------------------------------------
-// ⭐ INLINE CALL LOGS API (with user avatars)
+// Call Logs API
 // -------------------------------------------------------
 app.get("/api/call-logs", authMiddleware, async (req, res) => {
   try {
@@ -373,11 +425,9 @@ app.get("/api/call-logs", authMiddleware, async (req, res) => {
         c.caller_id,
         caller.fullname   AS caller_name,
         caller.avatar     AS caller_avatar,
-        
         c.receiver_id,
         receiver.fullname AS receiver_name,
         receiver.avatar   AS receiver_avatar,
-
         c.call_type,
         c.direction,
         c.status,
@@ -397,14 +447,11 @@ app.get("/api/call-logs", authMiddleware, async (req, res) => {
       logs: result.rows,
       hasMore: result.rows.length === limit,
     });
-
   } catch (err) {
-    console.error("[call-logs] DB error:", err);
+    console.error("[call-logs] error:", err);
     res.status(500).json({ error: "Database error" });
   }
 });
-
-
 
 // -------------------------------------------------------
 // Socket.IO Setup
@@ -417,12 +464,9 @@ const io = new Server(server, {
   },
 });
 
-// -------------------------------------------------------
-// Presence / DND State
-// -------------------------------------------------------
+// Presence / DND
 const onlineUsers = new Map();
 const dndState = new Map();
-
 const toStr = (v) => (v == null ? null : String(v));
 
 function addOnlineUser(userId, socketId, fullname = null) {
@@ -477,7 +521,6 @@ function broadcastPresenceOnline(userId) {
   const idStr = toStr(userId);
   if (!idStr) return;
 
-  console.log(`[presence] User online: userId=${idStr}`);
   broadcastStatusUpdate(idStr, { online: true, away: false });
   io.emit("presence:online", { user_id: idStr });
 }
@@ -486,14 +529,10 @@ function broadcastPresenceOffline(userId) {
   const idStr = toStr(userId);
   if (!idStr) return;
 
-  console.log(`[presence] User offline: userId=${idStr}`);
   broadcastStatusUpdate(idStr, { online: false, away: false });
   io.emit("presence:offline", { user_id: idStr });
 }
 
-// -------------------------------------------------------
-// Blocked helper
-// -------------------------------------------------------
 async function isBlocked(receiverId, senderId) {
   const result = await db.query(
     "SELECT 1 FROM blocked_contacts WHERE user_id = $1 AND blocked_id = $2 LIMIT 1",
@@ -505,97 +544,50 @@ async function isBlocked(receiverId, senderId) {
 function isDND(userId) {
   return dndState.get(toStr(userId)) === true;
 }
+
 // -------------------------------------------------------
 // Socket.IO Connection Handler
 // -------------------------------------------------------
 io.on("connection", (socket) => {
   console.log("[socket] Connected:", socket.id);
 
-// -------------------------------------------------------
-// Presence Sync
-// -------------------------------------------------------
-function registerPresenceSync(socket) {
-  socket.on("presence:get", () => {
-    const users = [];
+  socket.on("register", async (userId) => {
+    socket.userId = userId;
+    socket.join(`user:${userId}`);
 
-    for (const [userId, entry] of onlineUsers.entries()) {
-      users.push({
-        contact_id: userId,
-        online: true,
-        away: entry.away || false,
-      });
-    }
-
-    socket.emit("statusBatch", users);
+    addOnlineUser(userId, socket.id);
+    broadcastPresenceOnline(userId);
   });
-}
 
-// -------------------------------------------------------
-// Typing + Recording
-// -------------------------------------------------------
-function registerTypingAndRecording(socket, getCurrentUserId) {
-  const safeId = (v) => toStr(v || getCurrentUserId());
+  socket.on("dnd:update", ({ userId, active }) => {
+    dndState.set(toStr(userId), !!active);
+    io.to(`user:${userId}`).emit("dnd:update", { active: !!active });
+  });
 
   socket.on("typing:start", async ({ from, to }) => {
-    const target = safeId(to);
-    const sender = safeId(from);
-
-    if (!target || !sender) return;
+    const sender = toStr(from || socket.userId);
+    const target = toStr(to);
+    if (!sender || !target) return;
     if (await isBlocked(target, sender)) return;
     if (isDND(target)) return;
 
-    const entry = onlineUsers.get(sender);
-    const name = entry?.fullname || `User ${sender}`;
-
-    io.to(target).emit("typing:start", {
-      from: sender,
-      fullname: name,
-    });
+    io.to(`user:${target}`).emit("typing:start", { from: sender });
   });
 
   socket.on("typing:stop", async ({ from, to }) => {
-    const target = safeId(to);
-    const sender = safeId(from);
-
-    if (!target || !sender) return;
-    if (await isBlocked(target, sender)) return;
-    if (isDND(target)) return;
-
-    io.to(target).emit("typing:stop", { from: sender });
-  });
-
-  socket.on("recording:start", async ({ from, to }) => {
-    const target = safeId(to);
-    const sender = safeId(from);
-
-    if (!target || !sender) return;
-    if (await isBlocked(target, sender)) return;
-    if (isDND(target)) return;
-
-    io.to(target).emit("recording:start", { from: sender });
-  });
-
-  socket.on("recording:stop", async ({ from, to }) => {
-    const target = safeId(to);
-    const sender = safeId(from);
-
-    if (!target || !sender) return;
-    if (await isBlocked(target, sender)) return;
-    if (isDND(target)) return;
-
-    io.to(target).emit("recording:stop", { from: sender });
-  });
-}
-
-// -------------------------------------------------------
-// Audio Messaging + Voicemail
-// -------------------------------------------------------
-function registerAudioMessaging(socket, getCurrentUserId) {
-  socket.on("message:audio", async ({ from, to, url }) => {
+    const sender = toStr(from || socket.userId);
     const target = toStr(to);
-    const sender = toStr(from || getCurrentUserId());
+    if (!sender || !target) return;
+    if (await isBlocked(target, sender)) return;
+    if (isDND(target)) return;
 
-    if (!target || !sender) return;
+    io.to(`user:${target}`).emit("typing:stop", { from: sender });
+  });
+
+  socket.on("message:audio", async ({ from, to, url }) => {
+    const sender = toStr(from || socket.userId);
+    const target = toStr(to);
+    if (!sender || !target) return;
     if (await isBlocked(target, sender)) return;
 
     if (isDND(target)) {
@@ -604,7 +596,7 @@ function registerAudioMessaging(socket, getCurrentUserId) {
         [target, sender, url]
       );
 
-      io.to(target).emit("voicemail:new", {
+      io.to(`user:${target}`).emit("voicemail:new", {
         from_id: sender,
         audio_url: url,
         timestamp: new Date().toISOString(),
@@ -614,26 +606,25 @@ function registerAudioMessaging(socket, getCurrentUserId) {
       return;
     }
 
-    io.to(target).emit("message:audio", { from: sender, url });
+    io.to(`user:${target}`).emit("message:audio", { from: sender, url });
+    io.to(`user:${sender}`).emit("message:audio", { from: sender, url });
   });
-}
-  // -------------------------------------------------------
-  // Handle disconnect
-  // -------------------------------------------------------
+
+  socket.on("call:start", ({ to }) => {
+    io.to(`user:${to}`).emit("call:start");
+  });
+
   socket.on("disconnect", () => {
     console.log("[socket] Disconnected:", socket.id);
-
     const uid = socket.userId;
     if (!uid) return;
 
     const becameOffline = removeOnlineSocket(uid, socket.id);
-
     if (becameOffline) {
       broadcastPresenceOffline(uid);
     }
   });
-}); // <-- THIS closes io.on("connection")
-
+});
 
 // -------------------------------------------------------
 // Start Server
@@ -643,6 +634,8 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
+
 
 
 
