@@ -18,6 +18,8 @@ import callLogsRouter from "./src/routes/callLogs/index.js";
 import usersRouter from "./src/routes/users/search.js";
 
 import registerSockets from "./src/sockets/index.js";
+import logoutRouter from "./src/routes/auth/logout.js";
+app.use("/api/auth", logoutRouter);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -85,3 +87,4 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
