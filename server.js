@@ -11,6 +11,7 @@ import cookieParser from "cookie-parser";
 import fs from "fs";
 import WaveformData from "waveform-data";
 import registerWebRTCHandlers from "./sockets/webrtc.js";
+import { authMiddleware } from "./middleware/authMiddleware.js";
 
 
 
@@ -146,13 +147,13 @@ app.get("/api/contacts", authMiddleware, async (req, res) => {
         contact_name: row.contact_name,
         contact_email: row.contact_email,
         contact_avatar: row.avatar_filename
-          ? `/uploads/avatars/${row.avatar_filename}`
-          : `/img/defaultUser.png`,
+          ? `uploads/avatars/${row.avatar_filename}`
+          : `img/defaultUser.png`,
         contact_phone: row.contact_phone,
         contact_bio: row.contact_bio,
         contact_banner: row.contact_banner
-          ? `/uploads/banners/${row.contact_banner}`
-          : `/img/profile-banner.jpg`,
+          ? `uploads/banners/${row.contact_banner}`
+          : `img/profile-banner.jpg`,
         is_favorite: row.is_favorite,
         added_on: row.added_on,
         online: false,
@@ -642,6 +643,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
