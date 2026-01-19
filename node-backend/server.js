@@ -11,6 +11,9 @@ import authMiddleware from "./src/middleware/auth.js";
 
 import authLoginRouter from "./src/routes/auth/login.js";
 import authMeRouter from "./src/routes/auth/me.js";
+import logoutRouter from "./src/routes/auth/logout.js";
+import logoutAllRouter from "./src/routes/auth/logoutAll.js";
+
 import contactsRouter from "./src/routes/contacts/index.js";
 import messagesRouter from "./src/routes/messages/index.js";
 import voicemailRouter from "./src/routes/voicemail/index.js";
@@ -18,10 +21,6 @@ import callLogsRouter from "./src/routes/callLogs/index.js";
 import usersRouter from "./src/routes/users/search.js";
 
 import registerSockets from "./src/sockets/index.js";
-import logoutRouter from "./src/routes/auth/logout.js";
-app.use("/api/auth", logoutRouter);
-import logoutAllRouter from "./src/routes/auth/logoutAll.js";
-app.use("/api/auth", logoutAllRouter);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,14 +66,20 @@ app.get("/health", (req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
 
+// AUTH ROUTES
 app.use("/api/auth", authLoginRouter);
 app.use("/api/auth", authMeRouter);
+app.use("/api/auth", logoutRouter);       // ✔ now safe
+app.use("/api/auth", logoutAllRouter);    // ✔ now safe
+
+// FEATURE ROUTES
 app.use("/api/contacts", contactsRouter);
 app.use("/api/messages", messagesRouter);
 app.use("/api/voicemail", voicemailRouter);
 app.use("/api/call-logs", callLogsRouter);
 app.use("/api/users", usersRouter);
 
+// SOCKET.IO
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
@@ -89,5 +94,6 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
