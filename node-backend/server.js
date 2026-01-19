@@ -81,7 +81,9 @@ app.use("/api/call-logs", callLogsRouter);
 app.use("/api/users", usersRouter);
 
 // ⭐ WEBRTC ICE ROUTE
-app.use("/NewApp", iceRouter);
+// ⭐ CLEAN WEBRTC ROUTE
+app.use("/api/webrtc", iceRouter);
+
 
 // SOCKET.IO
 const io = new Server(server, {
@@ -98,6 +100,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
