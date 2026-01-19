@@ -20,6 +20,7 @@ import voicemailRouter from "./src/routes/voicemail/index.js";
 import callLogsRouter from "./src/routes/callLogs/index.js";
 import usersRouter from "./src/routes/users/search.js";
 
+import iceRouter from "./src/routes/webrtc/ice.js";   // ⭐ REQUIRED
 import registerSockets from "./src/sockets/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -69,8 +70,8 @@ app.get("/health", (req, res) => {
 // AUTH ROUTES
 app.use("/api/auth", authLoginRouter);
 app.use("/api/auth", authMeRouter);
-app.use("/api/auth", logoutRouter);       // ✔ now safe
-app.use("/api/auth", logoutAllRouter);    // ✔ now safe
+app.use("/api/auth", logoutRouter);
+app.use("/api/auth", logoutAllRouter);
 
 // FEATURE ROUTES
 app.use("/api/contacts", contactsRouter);
@@ -78,6 +79,9 @@ app.use("/api/messages", messagesRouter);
 app.use("/api/voicemail", voicemailRouter);
 app.use("/api/call-logs", callLogsRouter);
 app.use("/api/users", usersRouter);
+
+// ⭐ WEBRTC ICE ROUTE
+app.use("/NewApp", iceRouter);
 
 // SOCKET.IO
 const io = new Server(server, {
@@ -94,6 +98,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
