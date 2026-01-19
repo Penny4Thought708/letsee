@@ -3,43 +3,49 @@ router.get("/contacts", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Fetch contacts
-    const { rows } = await db.query(`
+    // Fetch contacts with profile info
+    const { rows } = await db.query(
+      `
       SELECT 
-        u.user_id        AS contact_id,
-        u.fullname       AS contact_name,
-        u.email          AS contact_email,
-        u.avatar         AS avatar_filename,
-        u.phone          AS contact_phone,
-        u.bio            AS contact_bio,
-        u.banner         AS contact_banner,
-        c.blocked        AS blocked,
-        c.is_favorite    AS is_favorite,
-        c.created_at     AS added_on
+        u.id           AS contact_id,
+        u.fullname     AS contact_name,
+        u.email        AS contact_email,
+        u.avatar       AS avatar_filename,
+        u.phone        AS contact_phone,
+        u.bio          AS contact_bio,
+        u.banner       AS contact_banner,
+        c.blocked      AS blocked,
+        c.is_favorite  AS is_favorite,
+        c.created_at   AS added_on
       FROM contacts c
-      JOIN users u ON c.contact_id = u.user_id
+      JOIN users u ON c.contact_id = u.id
       WHERE c.user_id = $1
       ORDER BY u.fullname ASC
-    `, [userId]);
+      `,
+      [userId]
+    );
 
     const contacts = [];
     const blocked = [];
 
-    // Prepare last message lookup
+    // Last message + unread count query
     const msgQuery = `
       SELECT 
-        m.message,
-        m.created_at,
+        pm.message,
+        pm.created_at,
         (
-          SELECT COUNT(*) FROM messages 
-          WHERE receiver_id = $1 AND sender_id = $2 AND seen = 0
+          SELECT COUNT(*) 
+          FROM private_messages 
+          WHERE receiver_id = $1 
+            AND sender_id = $2 
+            AND seen = 0
         ) AS unread_count
-      FROM messages m
+      FROM private_messages pm
       WHERE 
-        (m.sender_id = $2 AND m.receiver_id = $1)
+        (pm.sender_id = $2 AND pm.receiver_id = $1)
         OR
-        (m.sender_id = $1 AND m.receiver_id = $2)
-      ORDER BY m.created_at DESC
+        (pm.sender_id = $1 AND pm.receiver_id = $2)
+      ORDER BY pm.created_at DESC
       LIMIT 1
     `;
 
@@ -50,34 +56,43 @@ router.get("/contacts", authMiddleware, async (req, res) => {
       const last = msg.rows[0] || {};
 
       const contact = {
-        contact_id: contactId,
-        contact_name: row.contact_name,
-        contact_email: row.contact_email,
-        contact_avatar: row.avatar_filename
-          ? `/uploads/avatars/${row.avatar_filename}`
-          : `/img/defaultUser.png`,
-        contact_phone: row.contact_phone,
-        contact_bio: row.contact_bio,
-        contact_banner: row.contact_banner
-          ? `/uploads/banners/${row.contact_banner}`
-          : `/img/profile-banner.jpg`,
+        id: contactId,
+        name: row.contact_name,
+        email: row.contact_email,
+
+        avatar: row.avatar_filename
+          ? `https://letsee-backend.onrender.com/uploads/avatars/${row.avatar_filename}`
+          : `https://letsee-backend.onrender.com/img/defaultUser.png`,
+
+        phone: row.contact_phone,
+        bio: row.contact_bio,
+
+        banner: row.contact_banner
+          ? `https://letsee-backend.onrender.com/uploads/banners/${row.contact_banner}`
+          : `https://letsee-backend.onrender.com/img/profile-banner.jpg`,
+
         is_favorite: row.is_favorite,
         added_on: row.added_on,
-        online: false, // updated by WebSocket
+        online: false,
 
-        last_message: last.message || null,
-        last_message_at: last.created_at || null,
-        unread_count: Number(last.unread_count || 0)
+        lastMessage: {
+          text: last.message || "",
+          timestamp: last.created_at || null,
+        },
+
+        unread: Number(last.unread_count || 0),
       };
 
       if (row.blocked) blocked.push(contact);
       else contacts.push(contact);
     }
 
-    res.json({ contacts, blocked, error: null });
+    res.json({ contacts, blocked });
 
   } catch (err) {
-    res.json({ contacts: [], blocked: [], error: err.message });
+    console.error("contacts error:", err);
+    res.status(500).json({ contacts: [], blocked: [], error: err.message });
   }
 });
+
 
