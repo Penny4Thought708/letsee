@@ -1,3 +1,6 @@
+// src/sockets/index.js
+// Production‑grade real‑time orchestration layer
+
 import registerPresence from "./presence.js";
 import registerMessages from "./messages.js";
 import registerTyping from "./typing.js";
@@ -6,9 +9,14 @@ import registerVoicemail from "./voicemail.js";
 import registerWebRTC from "./webrtc.js";
 
 export default function registerSockets(io, db) {
-  const onlineUsers = new Map();   // userId → { socketIds:Set, fullname, ... }
+  const onlineUsers = new Map();   // userId → { socketIds:Set, fullname, lastSeen, away }
   const dndState = new Map();
   const toStr = (v) => (v == null ? null : String(v));
+
+  /* -------------------------------------------------------
+     Logging Helper
+  ------------------------------------------------------- */
+  const log = (msg) => console.log(`[socket] ${msg}`);
 
   /* -------------------------------------------------------
      Presence Tracking
@@ -29,8 +37,8 @@ export default function registerSockets(io, db) {
     }
 
     entry.socketIds.add(socketId);
-    if (fullname) entry.fullname = fullname;
     entry.lastSeen = Date.now();
+    if (fullname) entry.fullname = fullname;
   }
 
   function removeOnlineSocket(userId, socketId) {
@@ -56,6 +64,9 @@ export default function registerSockets(io, db) {
     return entry ? [...entry.socketIds] : [];
   }
 
+  /* -------------------------------------------------------
+     Presence Broadcast Helpers
+  ------------------------------------------------------- */
   function broadcastStatusUpdate(userId, { online, away }) {
     const idStr = toStr(userId);
     if (!idStr) return;
@@ -102,51 +113,72 @@ export default function registerSockets(io, db) {
      Socket Connection
   ------------------------------------------------------- */
   io.on("connection", (socket) => {
-    console.log("[socket] Connected:", socket.id);
+    log(`Connected: ${socket.id}`);
 
+    /* ---------------------------
+       User Registration
+    --------------------------- */
     socket.on("register", async (userId) => {
+      if (!userId) {
+        log(`⚠️ register event missing userId from socket ${socket.id}`);
+        return;
+      }
+
       socket.userId = userId;
       socket.join(`user:${userId}`);
 
       addOnlineUser(userId, socket.id);
       broadcastPresenceOnline(userId);
+
+      log(`User ${userId} registered on socket ${socket.id}`);
     });
 
+    /* ---------------------------
+       DND Updates
+    --------------------------- */
     socket.on("dnd:update", ({ userId, active }) => {
+      if (!userId) return;
+
       dndState.set(toStr(userId), !!active);
       io.to(`user:${userId}`).emit("dnd:update", { active: !!active });
+
+      log(`DND updated for user ${userId}: ${active}`);
     });
 
-    /* -------------------------------------------------------
+    /* ---------------------------
        Feature Modules
-    ------------------------------------------------------- */
+    --------------------------- */
     registerPresence(io, socket, onlineUsers);
     registerMessages(io, socket, db, { isBlocked, isDND });
     registerTyping(io, socket, { isBlocked, isDND });
     registerRecording(io, socket, { isBlocked, isDND });
     registerVoicemail(io, socket, db);
 
-    // ⭐ WebRTC now receives user → socket mapping
+    // ⭐ WebRTC receives user → socket mapping
     registerWebRTC(io, socket, {
       isBlocked,
       isDND,
       getSocketsForUser
     });
 
-    /* -------------------------------------------------------
-       Disconnect
-    ------------------------------------------------------- */
+    /* ---------------------------
+       Disconnect Handling
+    --------------------------- */
     socket.on("disconnect", () => {
-      console.log("[socket] Disconnected:", socket.id);
+      log(`Disconnected: ${socket.id}`);
+
       const uid = socket.userId;
       if (!uid) return;
 
       const becameOffline = removeOnlineSocket(uid, socket.id);
       if (becameOffline) {
         broadcastPresenceOffline(uid);
+        log(`User ${uid} is now offline`);
       }
     });
   });
 }
+
+
 
 
