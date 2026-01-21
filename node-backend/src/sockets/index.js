@@ -63,16 +63,11 @@ export default function registerSockets(io, db) {
     const entry = onlineUsers.get(key);
     return entry ? [...entry.socketIds] : [];
   }
-function getUserName(userId) {
-  const entry = onlineUsers.get(String(userId));
-  return entry?.fullname || null;
-}
-registerPresence(io, socket, onlineUsers, { getUserName });
-registerMessages(io, socket, db, { isBlocked, isDND, getUserName });
-registerTyping(io, socket, { isBlocked, isDND, getUserName });
-registerRecording(io, socket, { isBlocked, isDND, getUserName });
-registerVoicemail(io, socket, db, { getUserName });
-registerWebRTC(io, socket, { isBlocked, isDND, getSocketsForUser, getUserName });
+
+  function getUserName(userId) {
+    const entry = onlineUsers.get(String(userId));
+    return entry?.fullname || null;
+  }
 
   /* -------------------------------------------------------
      Presence Broadcast Helpers
@@ -156,19 +151,37 @@ registerWebRTC(io, socket, { isBlocked, isDND, getSocketsForUser, getUserName })
     });
 
     /* ---------------------------
-       Feature Modules
+       Feature Modules (NOW CORRECT)
     --------------------------- */
-    registerPresence(io, socket, onlineUsers);
-    registerMessages(io, socket, db, { isBlocked, isDND });
-    registerTyping(io, socket, { isBlocked, isDND });
-    registerRecording(io, socket, { isBlocked, isDND });
-    registerVoicemail(io, socket, db);
+    registerPresence(io, socket, onlineUsers, { getUserName });
 
-    // ⭐ WebRTC receives user → socket mapping
+    registerMessages(io, socket, db, {
+      isBlocked,
+      isDND,
+      getUserName
+    });
+
+    registerTyping(io, socket, {
+      isBlocked,
+      isDND,
+      getUserName
+    });
+
+    registerRecording(io, socket, {
+      isBlocked,
+      isDND,
+      getUserName
+    });
+
+    registerVoicemail(io, socket, db, {
+      getUserName
+    });
+
     registerWebRTC(io, socket, {
       isBlocked,
       isDND,
-      getSocketsForUser
+      getSocketsForUser,
+      getUserName
     });
 
     /* ---------------------------
@@ -188,6 +201,8 @@ registerWebRTC(io, socket, { isBlocked, isDND, getSocketsForUser, getUserName })
     });
   });
 }
+
+
 
 
 
