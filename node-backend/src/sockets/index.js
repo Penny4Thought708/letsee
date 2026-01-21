@@ -63,6 +63,16 @@ export default function registerSockets(io, db) {
     const entry = onlineUsers.get(key);
     return entry ? [...entry.socketIds] : [];
   }
+function getUserName(userId) {
+  const entry = onlineUsers.get(String(userId));
+  return entry?.fullname || null;
+}
+registerPresence(io, socket, onlineUsers, { getUserName });
+registerMessages(io, socket, db, { isBlocked, isDND, getUserName });
+registerTyping(io, socket, { isBlocked, isDND, getUserName });
+registerRecording(io, socket, { isBlocked, isDND, getUserName });
+registerVoicemail(io, socket, db, { getUserName });
+registerWebRTC(io, socket, { isBlocked, isDND, getSocketsForUser, getUserName });
 
   /* -------------------------------------------------------
      Presence Broadcast Helpers
@@ -178,6 +188,7 @@ export default function registerSockets(io, db) {
     });
   });
 }
+
 
 
 
