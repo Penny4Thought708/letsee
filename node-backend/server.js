@@ -1,3 +1,5 @@
+// server.js — Production‑Ready Real‑Time Backend
+
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
@@ -6,29 +8,40 @@ import cookieParser from "cookie-parser";
 import path from "path";
 import { fileURLToPath } from "url";
 
+// Database + middleware
 import db from "./src/db.js";
 import authMiddleware from "./src/middleware/auth.js";
 
+// Auth routes
 import authLoginRouter from "./src/routes/auth/login.js";
 import authMeRouter from "./src/routes/auth/me.js";
 import logoutRouter from "./src/routes/auth/logout.js";
 import logoutAllRouter from "./src/routes/auth/logoutAll.js";
 
+// Feature routes
 import contactsRouter from "./src/routes/contacts/index.js";
 import messagesRouter from "./src/routes/messages/index.js";
 import voicemailRouter from "./src/routes/voicemail/index.js";
 import callLogsRouter from "./src/routes/callLogs/index.js";
 import usersRouter from "./src/routes/users/search.js";
 
-import iceRouter from "./src/routes/webrtc/ice.js";   // ⭐ REQUIRED
+// WebRTC ICE route
+import iceRouter from "./src/routes/webrtc/ice.js";
+
+// Socket.IO registration
 import registerSockets from "./src/sockets/index.js";
 
+// Resolve __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Express + HTTP server
 const app = express();
 const server = http.createServer(app);
 
+/* -------------------------------------------------------
+   CORS CONFIGURATION
+------------------------------------------------------- */
 const allowedOrigins = [
   "http://localhost",
   "http://localhost:3000",
@@ -50,6 +63,7 @@ app.use(
   })
 );
 
+// Preflight handler
 app.options("*", (req, res) => {
   res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.header("Access-Control-Allow-Credentials", "true");
@@ -58,48 +72,75 @@ app.options("*", (req, res) => {
   res.sendStatus(200);
 });
 
-app.set("trust proxy", 1);
+/* -------------------------------------------------------
+   CORE MIDDLEWARE
+------------------------------------------------------- */
+app.set("trust proxy", 1); // Required for Render / proxies
 app.use(express.json());
 app.use(cookieParser());
+
+// Static uploads
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+/* -------------------------------------------------------
+   HEALTH CHECK
+------------------------------------------------------- */
 app.get("/health", (req, res) => {
-  res.json({ ok: true, uptime: process.uptime() });
+  res.json({
+    ok: true,
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
 });
 
-// AUTH ROUTES
+/* -------------------------------------------------------
+   AUTH ROUTES
+------------------------------------------------------- */
 app.use("/api/auth", authLoginRouter);
 app.use("/api/auth", authMeRouter);
 app.use("/api/auth", logoutRouter);
 app.use("/api/auth", logoutAllRouter);
 
-// FEATURE ROUTES
+/* -------------------------------------------------------
+   FEATURE ROUTES
+------------------------------------------------------- */
 app.use("/api/contacts", contactsRouter);
 app.use("/api/messages", messagesRouter);
 app.use("/api/voicemail", voicemailRouter);
 app.use("/api/call-logs", callLogsRouter);
 app.use("/api/users", usersRouter);
 
-// ⭐ WEBRTC ICE ROUTE
-// ⭐ CLEAN WEBRTC ROUTE
+/* -------------------------------------------------------
+   WEBRTC ICE ROUTE
+------------------------------------------------------- */
 app.use("/api/webrtc", iceRouter);
 
-
-// SOCKET.IO
+/* -------------------------------------------------------
+   SOCKET.IO SERVER
+------------------------------------------------------- */
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
-  }
+  },
+  pingTimeout: 20000,
+  pingInterval: 25000
 });
 
+// Register all real‑time modules (presence, messaging, WebRTC, etc.)
 registerSockets(io, db);
 
+/* -------------------------------------------------------
+   START SERVER
+------------------------------------------------------- */
 const PORT = process.env.PORT || 3001;
+
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Backend running on port ${PORT}`);
 });
+
+
 
 
 
