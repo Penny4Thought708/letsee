@@ -1,7 +1,7 @@
 // src/sockets/typing.js
-// Production‑grade typing indicator relay
+// Production‑grade typing indicator relay with names
 
-export default function registerTyping(io, socket, { isBlocked, isDND }) {
+export default function registerTyping(io, socket, { isBlocked, isDND, getUserName }) {
   const toStr = (v) => (v == null ? null : String(v));
   const log = (msg) => console.log(`[typing] ${msg}`);
 
@@ -27,9 +27,14 @@ export default function registerTyping(io, socket, { isBlocked, isDND }) {
       return;
     }
 
-    io.to(`user:${target}`).emit("typing:start", { from: sender });
+    const name = getUserName(sender);
 
-    log(`Relayed typing:start from ${sender} → ${target}`);
+    io.to(`user:${target}`).emit("typing:start", {
+      from: sender,
+      name
+    });
+
+    log(`Relayed typing:start from ${sender} (${name}) → ${target}`);
   });
 
   /* -------------------------------------------------------
@@ -54,10 +59,17 @@ export default function registerTyping(io, socket, { isBlocked, isDND }) {
       return;
     }
 
-    io.to(`user:${target}`).emit("typing:stop", { from: sender });
+    const name = getUserName(sender);
 
-    log(`Relayed typing:stop from ${sender} → ${target}`);
+    io.to(`user:${target}`).emit("typing:stop", {
+      from: sender,
+      name
+    });
+
+    log(`Relayed typing:stop from ${sender} (${name}) → ${target}`);
   });
 }
+
+
 
 
