@@ -6,10 +6,13 @@ import registerVoicemail from "./voicemail.js";
 import registerWebRTC from "./webrtc.js";
 
 export default function registerSockets(io, db) {
-  const onlineUsers = new Map();
+  const onlineUsers = new Map();   // userId → { socketIds:Set, fullname, ... }
   const dndState = new Map();
   const toStr = (v) => (v == null ? null : String(v));
 
+  /* -------------------------------------------------------
+     Presence Tracking
+  ------------------------------------------------------- */
   function addOnlineUser(userId, socketId, fullname = null) {
     const key = toStr(userId);
     if (!key) return;
@@ -47,6 +50,12 @@ export default function registerSockets(io, db) {
     return false;
   }
 
+  function getSocketsForUser(userId) {
+    const key = toStr(userId);
+    const entry = onlineUsers.get(key);
+    return entry ? [...entry.socketIds] : [];
+  }
+
   function broadcastStatusUpdate(userId, { online, away }) {
     const idStr = toStr(userId);
     if (!idStr) return;
@@ -74,6 +83,9 @@ export default function registerSockets(io, db) {
     io.emit("presence:offline", { user_id: idStr });
   }
 
+  /* -------------------------------------------------------
+     Block / DND Helpers
+  ------------------------------------------------------- */
   async function isBlocked(receiverId, senderId) {
     const result = await db.query(
       "SELECT 1 FROM blocked_contacts WHERE user_id = $1 AND blocked_id = $2 LIMIT 1",
@@ -86,6 +98,9 @@ export default function registerSockets(io, db) {
     return dndState.get(toStr(userId)) === true;
   }
 
+  /* -------------------------------------------------------
+     Socket Connection
+  ------------------------------------------------------- */
   io.on("connection", (socket) => {
     console.log("[socket] Connected:", socket.id);
 
@@ -102,13 +117,25 @@ export default function registerSockets(io, db) {
       io.to(`user:${userId}`).emit("dnd:update", { active: !!active });
     });
 
+    /* -------------------------------------------------------
+       Feature Modules
+    ------------------------------------------------------- */
     registerPresence(io, socket, onlineUsers);
     registerMessages(io, socket, db, { isBlocked, isDND });
     registerTyping(io, socket, { isBlocked, isDND });
     registerRecording(io, socket, { isBlocked, isDND });
     registerVoicemail(io, socket, db);
-    registerWebRTC(io, socket);
 
+    // ⭐ WebRTC now receives user → socket mapping
+    registerWebRTC(io, socket, {
+      isBlocked,
+      isDND,
+      getSocketsForUser
+    });
+
+    /* -------------------------------------------------------
+       Disconnect
+    ------------------------------------------------------- */
     socket.on("disconnect", () => {
       console.log("[socket] Disconnected:", socket.id);
       const uid = socket.userId;
@@ -121,3 +148,5 @@ export default function registerSockets(io, db) {
     });
   });
 }
+
+
