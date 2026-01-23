@@ -1,3 +1,6 @@
+// node-backend/src/routes/contacts/index.js
+
+
 import express from "express";
 import db from "../../db.js";
 import authMiddleware from "../../middleware/auth.js";
@@ -111,4 +114,5 @@ router.get("/contacts", authMiddleware, async (req, res) => {
 });
 
 export default router;
+
 
