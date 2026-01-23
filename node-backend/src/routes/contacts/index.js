@@ -5,12 +5,18 @@ import authMiddleware from "../../middleware/auth.js";
 
 const router = express.Router();
 
-// GET /api/contacts
+/**
+ * GET /api/contacts
+ * Returns:
+ *  - contacts[]  (non-blocked)
+ *  - blocked[]   (blocked contacts)
+ *  - each contact includes last_message + unread count
+ */
 router.get("/", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Fetch contacts for this user
+    // Fetch all contacts for this user
     const { rows } = await db.query(
       `
       SELECT 
@@ -62,7 +68,7 @@ router.get("/", authMiddleware, async (req, res) => {
     for (const row of rows) {
       const contactId = row.id;
 
-      // Fetch last message
+      // Fetch last message for this contact
       const msgRes = await db.query(lastMsgQuery, [userId, contactId]);
       const last = msgRes.rows[0] || {};
 
@@ -114,6 +120,8 @@ router.get("/", authMiddleware, async (req, res) => {
 });
 
 export default router;
+
+
 
 
 
