@@ -8,7 +8,8 @@ import authMiddleware from "../../middleware/auth.js";
 const router = express.Router();
 
 // GET /api/contacts
-router.get("/contacts", authMiddleware, async (req, res) => {
+router.get("/", authMiddleware, async (req, res) => {
+
   try {
     const userId = req.user.id;
 
@@ -114,5 +115,6 @@ router.get("/contacts", authMiddleware, async (req, res) => {
 });
 
 export default router;
+
 
 
