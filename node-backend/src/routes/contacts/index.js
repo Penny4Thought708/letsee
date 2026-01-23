@@ -37,23 +37,23 @@ router.get("/", authMiddleware, async (req, res) => {
 
     // Query for last message + unread count
     const lastMsgQuery = `
-      SELECT 
-        m.id,
-        m.message,
-        m.type,
-        m.file_url,
-        m.created_at,
-        (
-          SELECT COUNT(*) FROM messages 
-          WHERE receiver_id = $1 AND sender_id = $2 AND seen = 0
-        ) AS unread
-      FROM messages m
-      WHERE 
-        (m.sender_id = $2 AND m.receiver_id = $1)
-        OR
-        (m.sender_id = $1 AND m.receiver_id = $2)
-      ORDER BY m.created_at DESC
-      LIMIT 1
+  SELECT 
+  m.id,
+  m.message,
+  m.file_url,
+  m.created_at,
+  (
+    SELECT COUNT(*) FROM private_messages
+    WHERE receiver_id = $1 AND sender_id = $2 AND is_read = false
+  ) AS unread
+FROM private_messages m
+WHERE 
+  (m.sender_id = $2 AND m.receiver_id = $1)
+  OR
+  (m.sender_id = $1 AND m.receiver_id = $2)
+ORDER BY m.created_at DESC
+LIMIT 1
+
     `;
 
     for (const row of rows) {
@@ -115,6 +115,7 @@ router.get("/", authMiddleware, async (req, res) => {
 });
 
 export default router;
+
 
 
 
