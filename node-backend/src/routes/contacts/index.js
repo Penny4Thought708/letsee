@@ -4,43 +4,46 @@ import authMiddleware from "../../middleware/auth.js";
 
 const router = express.Router();
 
-router.get("/", authMiddleware, async (req, res) => {
+// GET /api/contacts
+router.get("/contacts", authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.user_id;
+    const userId = req.user.id;
 
-    const { rows } = await db.query(
-      `
+    // Fetch all contacts for this user
+    const { rows } = await db.query(`
       SELECT 
-        u.user_id        AS contact_id,
-        u.fullname       AS contact_name,
-        u.email          AS contact_email,
-        u.avatar         AS avatar_filename,
-        u.phone          AS contact_phone,
-        u.bio            AS contact_bio,
-        u.banner         AS contact_banner,
+        u.user_id        AS id,
+        u.fullname       AS name,
+        u.email          AS email,
+        u.avatar         AS avatar,
+        u.phone          AS phone,
+        u.bio            AS bio,
+        u.banner         AS banner,
         c.blocked        AS blocked,
-        c.is_favorite    AS is_favorite,
+        c.is_favorite    AS favorite,
         c.created_at     AS added_on
       FROM contacts c
       JOIN users u ON c.contact_id = u.user_id
       WHERE c.user_id = $1
       ORDER BY u.fullname ASC
-      `,
-      [userId]
-    );
+    `, [userId]);
 
     const contacts = [];
     const blocked = [];
 
-    const msgQuery = `
+    // Query for last message + unread count
+    const lastMsgQuery = `
       SELECT 
+        m.id,
         m.message,
+        m.type,
+        m.file_url,
         m.created_at,
         (
-          SELECT COUNT(*) FROM private_messages 
-          WHERE receiver_id = $1 AND sender_id = $2 AND is_read = false
-        ) AS unread_count
-      FROM private_messages m
+          SELECT COUNT(*) FROM messages 
+          WHERE receiver_id = $1 AND sender_id = $2 AND seen = 0
+        ) AS unread
+      FROM messages m
       WHERE 
         (m.sender_id = $2 AND m.receiver_id = $1)
         OR
@@ -50,39 +53,62 @@ router.get("/", authMiddleware, async (req, res) => {
     `;
 
     for (const row of rows) {
-      const contactId = row.contact_id;
-      const msg = await db.query(msgQuery, [userId, contactId]);
-      const last = msg.rows[0] || {};
+      const contactId = row.id;
+
+      const msgRes = await db.query(lastMsgQuery, [userId, contactId]);
+      const last = msgRes.rows[0] || {};
 
       const contact = {
-        contact_id: contactId,
-        contact_name: row.contact_name,
-        contact_email: row.contact_email,
-        contact_avatar: row.avatar_filename
-          ? `uploads/avatars/${row.avatar_filename}`
-          : `img/defaultUser.png`,
-        contact_phone: row.contact_phone,
-        contact_bio: row.contact_bio,
-        contact_banner: row.contact_banner
-          ? `uploads/banners/${row.contact_banner}`
-          : `img/profile-banner.jpg`,
-        is_favorite: row.is_favorite,
+        id: contactId,
+        name: row.name,
+        email: row.email,
+
+        avatar: row.avatar
+          ? `/uploads/avatars/${row.avatar}`
+          : `/img/defaultUser.png`,
+
+        banner: row.banner
+          ? `/uploads/banners/${row.banner}`
+          : `/img/profile-banner.jpg`,
+
+        phone: row.phone,
+        bio: row.bio,
+        favorite: row.favorite,
         added_on: row.added_on,
+
+        // Updated by WebSocket on frontend
         online: false,
-        last_message: last.message || null,
-        last_message_at: last.created_at || null,
-        unread_count: Number(last.unread_count || 0)
+
+        // Last message preview
+        last_message: {
+          id: last.id || null,
+          text: last.message || null,
+          type: last.type || "text",
+          file_url: last.file_url || null,
+          created_at: last.created_at || null,
+          unread: Number(last.unread || 0)
+        }
       };
 
       if (row.blocked) blocked.push(contact);
       else contacts.push(contact);
     }
 
-    res.json({ contacts, blocked, error: null });
+    res.json({
+      success: true,
+      contacts,
+      blocked
+    });
+
   } catch (err) {
-    console.error("[contacts] DB error:", err);
-    res.json({ contacts: [], blocked: [], error: err.message });
+    res.json({
+      success: false,
+      contacts: [],
+      blocked: [],
+      error: err.message
+    });
   }
 });
 
 export default router;
+
