@@ -1,7 +1,8 @@
 // /node-backend/api/contacts/index.js
 import express from "express";
 import pool from "../../src/db.js";
-import authMiddleware from "../../middleware/auth.js";
+import authMiddleware from "../../src/middleware/auth.js";
+
 
 const router = express.Router();
 
