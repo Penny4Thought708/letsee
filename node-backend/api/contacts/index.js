@@ -1,6 +1,7 @@
 // /node-backend/api/contacts/index.js
 import express from "express";
-import pool from "../../db.js";
+import pool from "../../src/db.js";
+
 
 const router = express.Router();
 
