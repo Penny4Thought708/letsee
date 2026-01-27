@@ -19,7 +19,7 @@ import logoutRouter from "./src/routes/auth/logout.js";
 import logoutAllRouter from "./src/routes/auth/logoutAll.js";
 
 // Feature routes
-import contactsRouter from "./src/routes/contacts/index.js";
+import contactsRouter from "./api/contacts/index.js";
 import messagesRouter from "./src/routes/messages/index.js";
 import voicemailRouter from "./src/routes/voicemail/index.js";
 import callLogsRouter from "./src/routes/callLogs/index.js";
@@ -139,6 +139,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT}`);
 });
+
 
 
 
