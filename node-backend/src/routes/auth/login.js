@@ -95,8 +95,6 @@ router.get("/me", async (req, res) => {
   } catch (err) {
     return res.json({ success: false });
   }
-});
-
     // ---------------------------------------------------
     // ⭐ SAVE SESSION — THE CRITICAL PART
     // ---------------------------------------------------
@@ -122,4 +120,5 @@ router.get("/me", async (req, res) => {
 });
 
 export default router;
+
 
