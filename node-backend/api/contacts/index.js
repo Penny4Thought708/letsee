@@ -1,6 +1,6 @@
-// /api/contacts/index.js
+// /node-backend/api/contacts/index.js
 import express from "express";
-import pool from "../../db.js"; // adjust path to your db connection
+import pool from "../../db.js";
 
 const router = express.Router();
 
@@ -8,13 +8,15 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const myUserId = req.session.user_id;
+
+    console.log("[API /contacts] Session user_id:", myUserId);
+
     if (!myUserId) {
       return res.json({ success: false, error: "Not logged in" });
     }
 
-    // Fetch contacts + JOIN users
-    const result = await pool.query(
-      `
+    // Use LEFT JOIN so missing users don't hide contacts
+    const query = `
       SELECT
         c.contact_id AS id,
         u.fullname AS name,
@@ -31,28 +33,40 @@ router.get("/", async (req, res) => {
         u.show_online AS online,
         c.blocked AS blocked
       FROM contacts c
-      JOIN users u ON u.user_id = c.contact_id
+      LEFT JOIN users u ON u.user_id = c.contact_id
       WHERE c.user_id = $1
-      ORDER BY u.fullname ASC
-      `,
-      [myUserId]
-    );
+      ORDER BY u.fullname ASC NULLS LAST
+    `;
+
+    console.log("[API /contacts] Running query for user:", myUserId);
+
+    const result = await pool.query(query, [myUserId]);
+
+    console.log("[API /contacts] Raw DB rows:", result.rows);
 
     const contacts = [];
     const blocked = [];
 
     result.rows.forEach((row) => {
+      if (!row.id) {
+        console.warn("[API /contacts] WARNING: contact_id has no matching user record:", row);
+      }
+
       if (row.blocked) blocked.push(row);
       else contacts.push(row);
     });
+
+    console.log("[API /contacts] Final contacts:", contacts);
+    console.log("[API /contacts] Final blocked:", blocked);
 
     res.json({
       success: true,
       contacts,
       blocked
     });
+
   } catch (err) {
-    console.error("GET /api/contacts error:", err);
+    console.error("[API /contacts] ERROR:", err);
     res.json({ success: false, error: "Server error" });
   }
 });
