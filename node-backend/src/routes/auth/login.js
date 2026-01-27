@@ -97,4 +97,29 @@ router.get("/me", async (req, res) => {
   }
 });
 
+    // ---------------------------------------------------
+    // ⭐ SAVE SESSION — THE CRITICAL PART
+    // ---------------------------------------------------
+    req.session.user_id = user.user_id;
+
+    // Ensure session is written before responding
+    req.session.save(() => {
+      return res.json({
+        success: true,
+        user: {
+          user_id: user.user_id,
+          fullname: user.fullname,
+          email: user.email,
+          avatar: user.avatar
+        }
+      });
+    });
+
+  } catch (err) {
+    console.error("POST /api/auth/login error:", err);
+    res.json({ success: false, error: "Server error" });
+  }
+});
+
 export default router;
+
