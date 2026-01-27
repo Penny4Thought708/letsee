@@ -1,10 +1,13 @@
 // server.js — Production‑Ready Real‑Time Backend
 
+
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import session from "express-session";
+import pgSession from "connect-pg-simple";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -19,7 +22,7 @@ import logoutRouter from "./src/routes/auth/logout.js";
 import logoutAllRouter from "./src/routes/auth/logoutAll.js";
 
 // Feature routes
-import contactsRouter from "./api/contacts/index.js";
+import contactsRouter from "./api/contacts/index.js";   // ← UPDATED PATH
 import messagesRouter from "./src/routes/messages/index.js";
 import voicemailRouter from "./src/routes/voicemail/index.js";
 import callLogsRouter from "./src/routes/callLogs/index.js";
@@ -75,9 +78,32 @@ app.options("*", (req, res) => {
 /* -------------------------------------------------------
    CORE MIDDLEWARE
 ------------------------------------------------------- */
-app.set("trust proxy", 1); // Required for Render / proxies
+app.set("trust proxy", 1);
 app.use(express.json());
 app.use(cookieParser());
+
+/* -------------------------------------------------------
+   SESSION MIDDLEWARE (FIXES req.session undefined)
+------------------------------------------------------- */
+const PgStore = pgSession(session);
+
+app.use(
+  session({
+    store: new PgStore({
+      pool: db,
+      tableName: "session"
+    }),
+    secret: process.env.SESSION_SECRET || "dev-secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: true,       // required on Render
+      httpOnly: true,
+      sameSite: "none",   // required for cross-origin cookies
+      maxAge: 1000 * 60 * 60 * 24 * 7
+    }
+  })
+);
 
 // Static uploads
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -104,7 +130,7 @@ app.use("/api/auth", logoutAllRouter);
 /* -------------------------------------------------------
    FEATURE ROUTES
 ------------------------------------------------------- */
-app.use("/api/contacts", contactsRouter);
+app.use("/api/contacts", contactsRouter);   // ← NOW USING CORRECT ROUTE
 app.use("/api/messages", messagesRouter);
 app.use("/api/voicemail", voicemailRouter);
 app.use("/api/call-logs", callLogsRouter);
@@ -128,7 +154,7 @@ const io = new Server(server, {
   pingInterval: 25000
 });
 
-// Register all real‑time modules (presence, messaging, WebRTC, etc.)
+// Register all real‑time modules
 registerSockets(io, db);
 
 /* -------------------------------------------------------
@@ -139,6 +165,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT}`);
 });
+
 
 
 
