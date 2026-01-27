@@ -1,31 +1,53 @@
-import db from "../../db.js";
+// /node-backend/src/routes/messages/thread.js
+import express from "express";
+import pool from "../../db.js";
 
-export default async function threadHandler(req, res) {
+const router = express.Router();
+
+// GET /api/messages/thread/:id
+router.get("/thread/:id", async (req, res) => {
   try {
-    const userId = req.user.user_id;
-    const contactId = req.params.contactId;
+    const myUserId = req.session.user_id;
 
-    const { rows } = await db.query(
+    console.log("[API /messages/thread] Session user_id:", myUserId);
+
+    if (!myUserId) {
+      return res.status(401).json({ success: false, error: "Not logged in" });
+    }
+
+    const contactId = req.params.id;
+
+    const { rows } = await pool.query(
       `
       SELECT *
-      FROM private_messages
+      FROM messages
       WHERE 
-        (sender_id=$1 AND receiver_id=$2)
+        (sender_id = $1 AND receiver_id = $2)
         OR
-        (sender_id=$2 AND receiver_id=$1)
+        (sender_id = $2 AND receiver_id = $1)
       ORDER BY created_at ASC
       `,
-      [userId, contactId]
+      [myUserId, contactId]
     );
 
-    await db.query(
-      `UPDATE private_messages SET is_read=true WHERE receiver_id=$1 AND sender_id=$2`,
-      [userId, contactId]
+    // Mark messages as seen
+    await pool.query(
+      `
+      UPDATE messages
+      SET seen = 1
+      WHERE receiver_id = $1 AND sender_id = $2
+      `,
+      [myUserId, contactId]
     );
 
     res.json({ success: true, messages: rows });
+
   } catch (err) {
-    console.error("[messages/thread] error:", err);
-    res.status(500).json({ success: false, error: "Database error" });
+    console.error("[API /messages/thread] ERROR:", err);
+    res.json({ success: false, error: "Server error" });
   }
-}
+});
+
+export default router;
+
+
