@@ -1,4 +1,4 @@
-// /node-backend/src/routes/call-logs/index.js
+// /node-backend/src/routes/callLogs/index.js
 import express from "express";
 import db from "../../db.js";
 
@@ -36,7 +36,7 @@ router.get("/", async (req, res) => {
       FROM call_logs c
       JOIN users caller   ON caller.user_id   = c.caller_id
       JOIN users receiver ON receiver.user_id = c.receiver_id
-      WHERE c.user_id = $1
+      WHERE c.caller_id = $1 OR c.receiver_id = $1
       ORDER BY c.id DESC
       LIMIT $2 OFFSET $3
       `,
@@ -56,3 +56,5 @@ router.get("/", async (req, res) => {
 });
 
 export default router;
+
+
