@@ -55,6 +55,7 @@ const allowedOrigins = [
   "https://letsee-vv23.onrender.com",
   "https://letsee-backend.onrender.com",
   "https://penny4thought708.github.io"
+  "https://penny4thought708.github.io/letsee"
 ];
 
 app.use(
@@ -96,12 +97,13 @@ app.use(
     secret: process.env.SESSION_SECRET || "dev-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: {
-      secure: true,       // required on Render
-      httpOnly: true,
-      sameSite: "none",   // required for cross-origin cookies
-      maxAge: 1000 * 60 * 60 * 24 * 7
-    }
+   cookie: {
+     secure: process.env.NODE_ENV === "production",
+     httpOnly: true,
+     sameSite: "none",
+     maxAge: 1000 * 60 * 60 * 24 * 7
+   }
+
   })
 );
 
@@ -165,6 +167,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT}`);
 });
+
 
 
 
