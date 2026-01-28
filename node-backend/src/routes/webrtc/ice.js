@@ -7,11 +7,11 @@ router.get("/get-ice", (req, res) => {
     iceServers: [
       {
         urls: [
-          "turns:your-turn-domain:443?transport=tcp",
-          "turn:your-turn-domain:3478?transport=udp"
+          "turns:global.xirsys.net:443?transport=tcp",
+          "turn:global.xirsys.net:3478?transport=udp"
         ],
-        username: "yourTurnUsername",
-        credential: "yourTurnPassword"
+        username: "TommyYatts",
+        credential: "91585c4a-ef29-11f0-a612-0242ac150002"
       },
       {
         urls: ["stun:stun.l.google.com:19302"]
@@ -19,6 +19,7 @@ router.get("/get-ice", (req, res) => {
     ]
   });
 });
+
 
 
 export default router;
