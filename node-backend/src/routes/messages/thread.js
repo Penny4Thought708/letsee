@@ -1,11 +1,7 @@
 // /node-backend/src/routes/messages/thread.js
-import express from "express";
 import pool from "../../db.js";
 
-const router = express.Router();
-
-// GET /api/messages/thread/:id
-router.get("/thread/:id", async (req, res) => {
+export default async function threadHandler(req, res) {
   try {
     const myUserId = req.session.user_id;
 
@@ -15,7 +11,7 @@ router.get("/thread/:id", async (req, res) => {
       return res.status(401).json({ success: false, error: "Not logged in" });
     }
 
-    const contactId = req.params.id;
+    const contactId = req.params.contactId;
 
     const { rows } = await pool.query(
       `
@@ -30,7 +26,6 @@ router.get("/thread/:id", async (req, res) => {
       [myUserId, contactId]
     );
 
-    // Mark messages as seen
     await pool.query(
       `
       UPDATE messages
@@ -46,8 +41,8 @@ router.get("/thread/:id", async (req, res) => {
     console.error("[API /messages/thread] ERROR:", err);
     res.json({ success: false, error: "Server error" });
   }
-});
+}
 
-export default router;
+
 
 
