@@ -1,16 +1,39 @@
+// node-backend/src/views/message_threads.sql
+
 CREATE OR REPLACE VIEW message_threads AS
+WITH last_messages AS (
+  SELECT
+    m.*,
+    ROW_NUMBER() OVER (
+      PARTITION BY LEAST(sender_id, receiver_id),
+                   GREATEST(sender_id, receiver_id)
+      ORDER BY id DESC
+    ) AS rn
+  FROM private_messages m
+)
 SELECT
-  LEAST(sender_id, receiver_id) AS user_id,
-  GREATEST(sender_id, receiver_id) AS contact_id,
+  -- Perspective for sender
+  sender_id AS user_id,
+  receiver_id AS contact_id,
   u.fullname AS contact_name,
   u.avatar AS contact_avatar,
-  m.message AS last_message,
-  m.created_at AS last_message_at
-FROM private_messages m
-JOIN users u
-  ON u.user_id = GREATEST(m.sender_id, m.receiver_id)
-WHERE m.id IN (
-  SELECT MAX(id)
-  FROM private_messages
-  GROUP BY LEAST(sender_id, receiver_id), GREATEST(sender_id, receiver_id)
-);
+  lm.message AS last_message,
+  lm.created_at AS last_message_at
+FROM last_messages lm
+JOIN users u ON u.user_id = lm.receiver_id
+WHERE lm.rn = 1
+
+UNION ALL
+
+SELECT
+  -- Perspective for receiver
+  receiver_id AS user_id,
+  sender_id AS contact_id,
+  u.fullname AS contact_name,
+  u.avatar AS contact_avatar,
+  lm.message AS last_message,
+  lm.created_at AS last_message_at
+FROM last_messages lm
+JOIN users u ON u.user_id = lm.sender_id
+WHERE lm.rn = 1;
+
