@@ -16,7 +16,7 @@ export default async function threadHandler(req, res) {
     const { rows } = await pool.query(
       `
       SELECT *
-      FROM messages
+      FROM private_messages
       WHERE 
         (sender_id = $1 AND receiver_id = $2)
         OR
@@ -28,8 +28,8 @@ export default async function threadHandler(req, res) {
 
     await pool.query(
       `
-      UPDATE messages
-      SET seen = 1
+      UPDATE private_messages
+      SET is_read = true
       WHERE receiver_id = $1 AND sender_id = $2
       `,
       [myUserId, contactId]
@@ -42,6 +42,7 @@ export default async function threadHandler(req, res) {
     res.json({ success: false, error: "Server error" });
   }
 }
+
 
 
 
