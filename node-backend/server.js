@@ -55,8 +55,8 @@ const allowedOrigins = [
   "https://letsee-vv23.onrender.com",
   "https://letsee-backend.onrender.com",
   "https://penny4thought708.github.io"
-  "https://penny4thought708.github.io/letsee"
 ];
+
 
 app.use(
   cors({
@@ -167,6 +167,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT}`);
 });
+
 
 
 
