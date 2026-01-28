@@ -1,11 +1,19 @@
+// /node-backend/src/routes/call-logs/index.js
 import express from "express";
 import db from "../../db.js";
-import authMiddleware from "../../middleware/auth.js";
 
 const router = express.Router();
 
-router.get("/", authMiddleware, async (req, res) => {
+router.get("/", async (req, res) => {
   try {
+    const myUserId = req.session.user_id;
+
+    console.log("[API /call-logs] Session user_id:", myUserId);
+
+    if (!myUserId) {
+      return res.status(401).json({ success: false, error: "Not logged in" });
+    }
+
     const offset = parseInt(req.query.offset || "0", 10);
     const limit = parseInt(req.query.limit || "30", 10);
 
@@ -28,19 +36,22 @@ router.get("/", authMiddleware, async (req, res) => {
       FROM call_logs c
       JOIN users caller   ON caller.user_id   = c.caller_id
       JOIN users receiver ON receiver.user_id = c.receiver_id
+      WHERE c.user_id = $1
       ORDER BY c.id DESC
-      LIMIT $1 OFFSET $2
+      LIMIT $2 OFFSET $3
       `,
-      [limit, offset]
+      [myUserId, limit, offset]
     );
 
     res.json({
+      success: true,
       logs: result.rows,
       hasMore: result.rows.length === limit
     });
+
   } catch (err) {
     console.error("[call-logs] error:", err);
-    res.status(500).json({ error: "Database error" });
+    res.status(500).json({ success: false, error: "Database error" });
   }
 });
 
