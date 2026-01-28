@@ -1,30 +1,26 @@
-import jwt from "jsonwebtoken";
-import db from "../db.js";
+// /node-backend/src/middleware/auth.js
+// -------------------------------------------------------
+// Session‑based authentication middleware
+// Works with express-session + connect-pg-simple
+// -------------------------------------------------------
 
-export default async function authMiddleware(req, res, next) {
-  const token =
-    req.cookies.token ||
-    req.headers.authorization?.replace("Bearer ", "");
-
-  if (!token) return res.status(401).json({ success: false });
-
-  // Check blacklist
-  const blacklisted = await db.query(
-    "SELECT 1 FROM token_blacklist WHERE token=$1 LIMIT 1",
-    [token]
-  );
-
-  if (blacklisted.rowCount > 0) {
-    return res.status(401).json({ success: false });
+export default function authMiddleware(req, res, next) {
+  // Ensure session exists
+  if (!req.session) {
+    return res.status(401).json({ success: false, error: "No session" });
   }
 
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { user_id: decoded.user_id };
-    next();
-  } catch {
-    return res.status(401).json({ success: false });
+  // Check for logged-in user
+  if (!req.session.user_id) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
   }
+
+  // Expose user_id to downstream routes
+  req.user = { user_id: req.session.user_id };
+
+  next();
 }
+
+
 
 
