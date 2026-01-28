@@ -16,9 +16,15 @@ export default async function sendHandler(req, res) {
 
     const msg = rows[0];
 
-    res.json({ success: true, ...msg });
+    // Add UI-friendly fields
+    msg.is_me = true;
+    msg.reactions = [];
+
+    res.json({ success: true, message: msg });
+
   } catch (err) {
     console.error("[messages/send] error:", err);
     res.status(500).json({ success: false, error: "Database error" });
   }
 }
+
