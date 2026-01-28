@@ -23,6 +23,7 @@
     "pg": "^8.11.3",
     "socket.io": "^4.7.5",
     "waveform-data": "^4.5.2"
+    "node-fetch": "^3.x"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
@@ -31,5 +32,6 @@
     "node": "20.x"
   }
 }
+
 
 
