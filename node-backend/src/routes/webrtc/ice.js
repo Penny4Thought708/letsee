@@ -13,45 +13,61 @@ router.get("/get-ice", async (req, res) => {
         "Authorization":
           "Basic " +
           Buffer.from("TommyYatts:91585c4a-ef29-11f0-a612-0242ac150002").toString("base64"),
-        "Content-Type": "application/json",
-        "Content-Length": body.length,
+        "Content-Type": "application/json"
       },
-      body,
+      body
     });
 
     const data = await response.json();
-    let iceServers = data?.v?.iceServers || [];
 
-    // 🔥 Add guaranteed TURN relay on port 443
+    // Xirsys returns: { v: { iceServers: [...] } }
+    let iceServers = Array.isArray(data?.v?.iceServers)
+      ? data.v.iceServers
+      : [];
+
+    // ⭐ Guaranteed TURN relay on 443/tcp (best for mobile)
     const guaranteedRelay = {
-      urls: "turn:global.xirsys.net:443?transport=tcp",
+      urls: ["turn:global.xirsys.net:443?transport=tcp"],
       username: "TommyYatts",
-      credential: "91585c4a-ef29-11f0-a612-0242ac150002",
+      credential: "91585c4a-ef29-11f0-a612-0242ac150002"
     };
 
-    // Ensure relay is always included
-    iceServers.push(guaranteedRelay);
+    // Avoid duplicates
+    const hasRelay443 = iceServers.some(s =>
+      (Array.isArray(s.urls) ? s.urls : [s.urls]).some(u =>
+        u.includes("global.xirsys.net:443")
+      )
+    );
 
-    res.json({ iceServers });
+    if (!hasRelay443) {
+      iceServers.push(guaranteedRelay);
+    }
+
+    return res.json({ iceServers });
+
   } catch (err) {
     console.error("[ICE] Xirsys error:", err);
 
-    // Fallback: STUN + guaranteed TURN
-    res.json({
+    // ⭐ Clean fallback: STUN + TURN (TCP 443)
+    return res.json({
       iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
+        { urls: ["stun:stun.l.google.com:19302"] },
         {
-          urls: "turn:global.xirsys.net:443?transport=tcp",
-          username: "TommyYatts",
-          credential: "91585c4a-ef29-11f0-a612-0242ac150002",
-        },
-      ],
+          urls: [
+            "turns:us-turn3.xirsys.com:443?transport=tcp",
+            "turns:us-turn3.xirsys.com:5349?transport=tcp"
+          ],
+          username:
+            "pNNsSw9RUFU1xAmcGCS_jLnWqdxLgtmfu842JQSyJCHTIgqCXERA2MZWWQES9H9VAAAAAGl7xz1Ub21teVlhdHRz",
+          credential: "a4e8a85e-fd53-11f0-b4fa-0242ac140004"
+        }
+      ]
     });
   }
 });
 
-// ⭐ REQUIRED EXPORTS
 export { router };
 export default router;
+
 
 
