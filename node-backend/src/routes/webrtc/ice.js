@@ -4,6 +4,8 @@ import fetch from "node-fetch";
 const router = express.Router();
 
 router.get("/get-ice", async (req, res) => {
+  const relayOnly = req.query.relayOnly === "1";
+
   try {
     const body = JSON.stringify({ format: "urls" });
 
@@ -20,35 +22,56 @@ router.get("/get-ice", async (req, res) => {
 
     const data = await response.json();
 
-    // Xirsys returns: { v: { iceServers: [...] } }
     let iceServers = Array.isArray(data?.v?.iceServers)
       ? data.v.iceServers
       : [];
 
-    // ⭐ Guaranteed TURN relay on 443/tcp (best for mobile)
+    // Normalize urls to arrays
+    iceServers = iceServers.map((s) => {
+      const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+      return { ...s, urls };
+    });
+
+    // Filter for mobile‑safe transports if relayOnly requested
+    if (relayOnly) {
+      iceServers = iceServers
+        .map((s) => ({
+          ...s,
+          urls: s.urls.filter((u) =>
+            u.startsWith("turns:") && u.includes(":443")
+          )
+        }))
+        .filter((s) => s.urls.length > 0);
+    }
+
+    // Guaranteed extra TURN on 443/tcp (global)
     const guaranteedRelay = {
-      urls: ["turn:global.xirsys.net:443?transport=tcp"],
-      username: "TommyYatts",
-      credential: "91585c4a-ef29-11f0-a612-0242ac150002"
+      urls: ["turns:us-turn3.xirsys.com:443?transport=tcp"],
+      username:
+        "pNNsSw9RUFU1xAmcGCS_jLnWqdxLgtmfu842JQSyJCHTIgqCXERA2MZWWQES9H9VAAAAAGl7xz1Ub21teVlhdHRz",
+      credential: "a4e8a85e-fd53-11f0-b4fa-0242ac140004"
     };
 
-    // Avoid duplicates
-    const hasRelay443 = iceServers.some(s =>
-      (Array.isArray(s.urls) ? s.urls : [s.urls]).some(u =>
-        u.includes("global.xirsys.net:443")
-      )
+    const hasGuaranteed = iceServers.some((s) =>
+      s.urls.some((u) => u.includes("us-turn3.xirsys.com:443"))
     );
 
-    if (!hasRelay443) {
+    if (!hasGuaranteed) {
       iceServers.push(guaranteedRelay);
     }
 
-    return res.json({ iceServers });
+    // Always add a basic STUN for non‑relayOnly mode
+    if (!relayOnly) {
+      iceServers.unshift({
+        urls: ["stun:stun.l.google.com:19302"]
+      });
+    }
 
+    return res.json({ iceServers });
   } catch (err) {
     console.error("[ICE] Xirsys error:", err);
 
-    // ⭐ Clean fallback: STUN + TURN (TCP 443)
+    // Clean fallback: STUN + TURN 443/tcp only
     return res.json({
       iceServers: [
         { urls: ["stun:stun.l.google.com:19302"] },
@@ -68,6 +91,7 @@ router.get("/get-ice", async (req, res) => {
 
 export { router };
 export default router;
+
 
 
 
