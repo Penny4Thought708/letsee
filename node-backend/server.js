@@ -12,6 +12,7 @@ import { fileURLToPath } from "url";
 import compression from "compression";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import morgan from "morgan";
 
 // Database + middleware
 import db from "./src/db.js";
@@ -104,6 +105,14 @@ app.use("/api/webrtc", authLimiter);
    CORE MIDDLEWARE
 ------------------------------------------------------- */
 app.set("trust proxy", 1);
+
+// HTTP request logging
+app.use(
+  morgan(isProd ? "combined" : "dev", {
+    skip: (req, res) => isProd && res.statusCode < 400
+  })
+);
+
 app.use(compression());
 app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
@@ -233,6 +242,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT} (${NODE_ENV})`);
 });
+
 
 
 
