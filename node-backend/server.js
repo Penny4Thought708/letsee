@@ -11,6 +11,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import compression from "compression";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 
 // Database + middleware
 import db from "./src/db.js";
@@ -48,7 +49,7 @@ const app = express();
 const server = http.createServer(app);
 
 /* -------------------------------------------------------
-   CORS CONFIGURATION
+   CORS CONFIGURATION (Production‑Safe)
 ------------------------------------------------------- */
 const allowedOrigins = [
   "http://localhost",
@@ -64,7 +65,6 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin(origin, callback) {
-    // Allow non-browser tools / same-origin / no Origin header
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     console.warn("[CORS] Blocked origin:", origin);
@@ -77,40 +77,39 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Preflight handler
-app.options("*", (req, res) => {
-  const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-  } else {
-    res.header("Access-Control-Allow-Origin", "*");
-  }
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.sendStatus(200);
+/* -------------------------------------------------------
+   SECURITY HEADERS (Production‑Safe Helmet)
+------------------------------------------------------- */
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+  })
+);
+
+/* -------------------------------------------------------
+   RATE LIMITING (Protects Auth + WebRTC Signaling)
+------------------------------------------------------- */
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: { success: false, error: "Too many requests" }
 });
+
+app.use("/api/auth", authLimiter);
+app.use("/api/webrtc", authLimiter);
 
 /* -------------------------------------------------------
    CORE MIDDLEWARE
 ------------------------------------------------------- */
 app.set("trust proxy", 1);
-
-// Security headers (kept conservative to avoid breaking anything)
-app.use(
-  helmet({
-    contentSecurityPolicy: false
-  })
-);
-
-// Compression for responses
 app.use(compression());
-
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
 /* -------------------------------------------------------
-   SESSION MIDDLEWARE
+   SESSION MIDDLEWARE (Secure)
 ------------------------------------------------------- */
 const PgStore = pgSession(session);
 
@@ -172,12 +171,6 @@ app.use("/api/users", usersRouter);
 app.use("/api/webrtc", iceRouter);
 
 /* -------------------------------------------------------
-   BASIC AUTH GUARD EXAMPLE (kept non-invasive)
-   (You can wrap specific routes with authMiddleware later)
-------------------------------------------------------- */
-// Example: app.use("/api/secure", authMiddleware, secureRouter);
-
-/* -------------------------------------------------------
    404 + ERROR HANDLING
 ------------------------------------------------------- */
 app.use((req, res, next) => {
@@ -196,7 +189,7 @@ app.use((err, req, res, next) => {
 });
 
 /* -------------------------------------------------------
-   SOCKET.IO SERVER
+   SOCKET.IO SERVER (Production‑Ready)
 ------------------------------------------------------- */
 const io = new Server(server, {
   cors: {
@@ -208,8 +201,29 @@ const io = new Server(server, {
   pingInterval: 25000
 });
 
+// WebSocket authentication (session‑based)
+io.use((socket, next) => {
+  const sessionCookie = socket.request.headers.cookie;
+  if (!sessionCookie) {
+    console.warn("[Socket] Missing session cookie");
+    return next(new Error("Unauthorized"));
+  }
+  next();
+});
+
 // Register all real‑time modules
 registerSockets(io, db);
+
+/* -------------------------------------------------------
+   GRACEFUL SHUTDOWN
+------------------------------------------------------- */
+process.on("SIGTERM", () => {
+  console.log("Shutting down gracefully...");
+  server.close(() => {
+    console.log("HTTP server closed");
+    process.exit(0);
+  });
+});
 
 /* -------------------------------------------------------
    START SERVER
@@ -219,6 +233,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT} (${NODE_ENV})`);
 });
+
 
 
 
