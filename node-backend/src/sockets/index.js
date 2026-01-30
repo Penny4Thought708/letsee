@@ -1,6 +1,7 @@
 // src/sockets/index.js
 // Production‑grade real‑time orchestration layer
-// Global call state (persists across reconnects)
+
+// 🔥 Global call state (persists across reconnects)
 export const activeCalls = new Map();
 // key: userId
 // value: { callerId, receiverId, status }
@@ -123,8 +124,8 @@ export default function registerSockets(io, db) {
   ------------------------------------------------------- */
   io.on("connection", (socket) => {
     log(`Connected: ${socket.id}`);
-    console.log("INSTANCE:", process.env.RENDER_INSTANCE_ID); 
-    console.log(`[socket] Connected: ${socket.id}`);
+    console.log("INSTANCE:", process.env.RENDER_INSTANCE_ID);
+
     /* ---------------------------
        User Registration
     --------------------------- */
@@ -143,9 +144,7 @@ export default function registerSockets(io, db) {
         if (sid !== socket.id) {
           log(`Forcing disconnect of old socket ${sid} for user ${userId}`);
           const oldSocket = io.sockets.sockets.get(sid);
-          if (oldSocket) {
-            oldSocket.disconnect(true);
-          }
+          if (oldSocket) oldSocket.disconnect(true);
           removeOnlineSocket(userId, sid);
         }
       }
@@ -153,13 +152,33 @@ export default function registerSockets(io, db) {
       addOnlineUser(userId, socket.id);
       broadcastPresenceOnline(userId);
 
-      // Debug snapshot so you can SEE what the server thinks
       console.log(
         "[socket] ONLINE USERS SNAPSHOT:",
         JSON.stringify([...onlineUsers.entries()], null, 2)
       );
 
       log(`User ${userId} registered on socket ${socket.id}`);
+
+      /* -------------------------------------------------------
+         🔥 CALL RECOVERY LOGIC
+      ------------------------------------------------------- */
+      const call = activeCalls.get(userId);
+
+      if (call) {
+        const { callerId, receiverId, status } = call;
+
+        // If caller reconnects while call is still ringing → end it
+        if (status === "ringing" && callerId === userId) {
+          io.to(`user:${receiverId}`).emit("call:end", { from: userId });
+          activeCalls.delete(callerId);
+          activeCalls.delete(receiverId);
+        }
+
+        // If call was active → restore UI
+        if (status === "active") {
+          socket.emit("call:restore", call);
+        }
+      }
     });
 
     /* ---------------------------
@@ -230,6 +249,7 @@ export default function registerSockets(io, db) {
     });
   });
 }
+
 
 
 
