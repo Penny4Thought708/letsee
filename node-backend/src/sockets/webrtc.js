@@ -1,6 +1,11 @@
 // src/sockets/webrtc.js
 // Premium, production‑grade WebRTC signaling relay
 
+// 🔥 Global call state (exported so index.js can use it for recovery)
+export const activeCalls = new Map();
+// key: userId
+// value: { callerId, receiverId, status: "ringing" | "active" }
+
 export default function registerWebRTC(io, socket, helpers = {}) {
   const {
     isBlocked,
@@ -37,6 +42,37 @@ export default function registerWebRTC(io, socket, helpers = {}) {
       return;
     }
 
+    // 🔥 Track call state on offer
+    if (type === "offer") {
+      const callerId = socket.userId;
+      const receiverId = to;
+
+      activeCalls.set(callerId, {
+        callerId,
+        receiverId,
+        status: "ringing"
+      });
+
+      activeCalls.set(receiverId, {
+        callerId,
+        receiverId,
+        status: "ringing"
+      });
+
+      log(`📞 Stored call state: ${callerId} → ${receiverId} (ringing)`);
+    }
+
+    // 🔥 Mark call active on answer
+    if (type === "answer") {
+      const call = activeCalls.get(socket.userId);
+      if (call) {
+        call.status = "active";
+        activeCalls.set(call.callerId, call);
+        activeCalls.set(call.receiverId, call);
+        log(`✅ Call active between ${call.callerId} ↔ ${call.receiverId}`);
+      }
+    }
+
     // Block check
     if (isBlocked && await isBlocked(to, socket.userId)) {
       log(`🚫 Blocked: user ${socket.userId} → user ${to} (${type})`);
@@ -64,7 +100,9 @@ export default function registerWebRTC(io, socket, helpers = {}) {
       });
     }
 
-    log(`📡 Relayed '${type}' from user ${socket.userId} → user ${to} (${targets.length} devices)`);
+    log(
+      `📡 Relayed '${type}' from user ${socket.userId} → user ${to} (${targets.length} devices)`
+    );
   });
 
   /* -------------------------------------------------------
@@ -81,7 +119,14 @@ export default function registerWebRTC(io, socket, helpers = {}) {
       io.to(sid).emit("call:end", { from: socket.userId });
     }
 
-    log(`📞 call:end from user ${socket.userId} → user ${to}`);
+    // 🔥 Clear call state for both sides
+    const callerId = socket.userId;
+    const receiverId = to;
+
+    activeCalls.delete(callerId);
+    activeCalls.delete(receiverId);
+
+    log(`📞 call:end from user ${callerId} → user ${receiverId} (state cleared)`);
   });
 
   /* -------------------------------------------------------
