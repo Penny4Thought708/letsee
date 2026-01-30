@@ -119,7 +119,8 @@ export default function registerSockets(io, db) {
   ------------------------------------------------------- */
   io.on("connection", (socket) => {
     log(`Connected: ${socket.id}`);
-
+    console.log("INSTANCE:", process.env.RENDER_INSTANCE_ID); 
+    console.log(`[socket] Connected: ${socket.id}`);
     /* ---------------------------
        User Registration
     --------------------------- */
@@ -225,6 +226,7 @@ export default function registerSockets(io, db) {
     });
   });
 }
+
 
 
 
