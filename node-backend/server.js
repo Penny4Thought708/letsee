@@ -13,6 +13,12 @@ import compression from "compression";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import morgan from "morgan";
+import dotenv from "dotenv";
+dotenv.config();
+
+// Redis adapter
+import { createAdapter } from "@socket.io/redis-adapter";
+import { createClient } from "redis";
 
 // Database + middleware
 import db from "./src/db.js";
@@ -50,7 +56,7 @@ const app = express();
 const server = http.createServer(app);
 
 /* -------------------------------------------------------
-   CORS CONFIGURATION (Production‑Safe)
+   CORS CONFIGURATION
 ------------------------------------------------------- */
 const allowedOrigins = [
   "http://localhost",
@@ -79,7 +85,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 /* -------------------------------------------------------
-   SECURITY HEADERS (Production‑Safe Helmet)
+   SECURITY HEADERS
 ------------------------------------------------------- */
 app.use(
   helmet({
@@ -90,7 +96,7 @@ app.use(
 );
 
 /* -------------------------------------------------------
-   RATE LIMITING (Protects Auth + WebRTC Signaling)
+   RATE LIMITING
 ------------------------------------------------------- */
 const authLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -106,7 +112,6 @@ app.use("/api/webrtc", authLimiter);
 ------------------------------------------------------- */
 app.set("trust proxy", 1);
 
-// HTTP request logging
 app.use(
   morgan(isProd ? "combined" : "dev", {
     skip: (req, res) => isProd && res.statusCode < 400
@@ -118,7 +123,7 @@ app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
 /* -------------------------------------------------------
-   SESSION MIDDLEWARE (Secure)
+   SESSION MIDDLEWARE
 ------------------------------------------------------- */
 const PgStore = pgSession(session);
 
@@ -180,25 +185,7 @@ app.use("/api/users", usersRouter);
 app.use("/api/webrtc", iceRouter);
 
 /* -------------------------------------------------------
-   404 + ERROR HANDLING
-------------------------------------------------------- */
-app.use((req, res, next) => {
-  if (req.path.startsWith("/api/")) {
-    return res.status(404).json({ success: false, error: "Not found" });
-  }
-  next();
-});
-
-app.use((err, req, res, next) => {
-  console.error("[Express Error]", err);
-  if (res.headersSent) return next(err);
-  res
-    .status(err.status || 500)
-    .json({ success: false, error: "Internal server error" });
-});
-
-/* -------------------------------------------------------
-   SOCKET.IO SERVER (Production‑Ready)
+   SOCKET.IO SERVER
 ------------------------------------------------------- */
 const io = new Server(server, {
   cors: {
@@ -210,7 +197,36 @@ const io = new Server(server, {
   pingInterval: 25000
 });
 
-// WebSocket authentication (session‑based)
+/* -------------------------------------------------------
+   REDIS ADAPTER (Cluster‑Safe WebSockets)
+------------------------------------------------------- */
+async function setupRedisAdapter() {
+  try {
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+      console.error("❌ Missing REDIS_URL environment variable");
+      return;
+    }
+
+    const pubClient = createClient({ url: redisUrl });
+    const subClient = pubClient.duplicate();
+
+    await pubClient.connect();
+    await subClient.connect();
+
+    io.adapter(createAdapter(pubClient, subClient));
+
+    console.log("🔗 Redis adapter connected");
+  } catch (err) {
+    console.error("❌ Redis adapter failed:", err);
+  }
+}
+
+setupRedisAdapter();
+
+/* -------------------------------------------------------
+   SOCKET AUTH
+------------------------------------------------------- */
 io.use((socket, next) => {
   const sessionCookie = socket.request.headers.cookie;
   if (!sessionCookie) {
@@ -220,7 +236,9 @@ io.use((socket, next) => {
   next();
 });
 
-// Register all real‑time modules
+/* -------------------------------------------------------
+   REGISTER SOCKET MODULES
+------------------------------------------------------- */
 registerSockets(io, db);
 
 /* -------------------------------------------------------
@@ -242,6 +260,8 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT} (${NODE_ENV})`);
 });
+
+
 
 
 
