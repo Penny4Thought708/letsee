@@ -4,8 +4,6 @@ import fetch from "node-fetch";
 const router = express.Router();
 
 router.get("/get-ice", async (req, res) => {
-  const relayOnly = req.query.relayOnly === "1";
-
   try {
     const body = JSON.stringify({ format: "urls" });
 
@@ -32,19 +30,20 @@ router.get("/get-ice", async (req, res) => {
       return { ...s, urls };
     });
 
-    // Filter for mobile‑safe transports if relayOnly requested
-    if (relayOnly) {
-      iceServers = iceServers
-        .map((s) => ({
-          ...s,
-          urls: s.urls.filter((u) =>
-            u.startsWith("turns:") && u.includes(":443")
-          )
-        }))
-        .filter((s) => s.urls.length > 0);
-    }
+    // 🔥 TURN‑ONLY: keep only TURN/TURNS on port 443 (TCP/TLS)
+    iceServers = iceServers
+      .map((s) => ({
+        ...s,
+        urls: s.urls.filter((u) =>
+          u.startsWith("turn:") ||
+          u.startsWith("turns:")
+        ).filter((u) =>
+          u.includes(":443")
+        )
+      }))
+      .filter((s) => s.urls.length > 0);
 
-    // Guaranteed extra TURN on 443/tcp (global)
+    // 🔥 Guaranteed fallback TURN/TLS/443
     const guaranteedRelay = {
       urls: ["turns:us-turn3.xirsys.com:443?transport=tcp"],
       username:
@@ -60,25 +59,18 @@ router.get("/get-ice", async (req, res) => {
       iceServers.push(guaranteedRelay);
     }
 
-    // Always add a basic STUN for non‑relayOnly mode
-    if (!relayOnly) {
-      iceServers.unshift({
-        urls: ["stun:stun.l.google.com:19302"]
-      });
-    }
-
+    // 🔥 NO STUN. NO UDP. TURN‑ONLY.
     return res.json({ iceServers });
+
   } catch (err) {
     console.error("[ICE] Xirsys error:", err);
 
-    // Clean fallback: STUN + TURN 443/tcp only
+    // 🔥 TURN‑ONLY fallback (no STUN)
     return res.json({
       iceServers: [
-        { urls: ["stun:stun.l.google.com:19302"] },
         {
           urls: [
-            "turns:us-turn3.xirsys.com:443?transport=tcp",
-            "turns:us-turn3.xirsys.com:5349?transport=tcp"
+            "turns:us-turn3.xirsys.com:443?transport=tcp"
           ],
           username:
             "pNNsSw9RUFU1xAmcGCS_jLnWqdxLgtmfu842JQSyJCHTIgqCXERA2MZWWQES9H9VAAAAAGl7xz1Ub21teVlhdHRz",
