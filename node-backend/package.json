@@ -27,7 +27,9 @@
     "waveform-data": "^4.5.2",
     "node-fetch": "^3.x",
     "morgan": "^1.10.0",
-    "dotenv": "^16.4.0"
+    "dotenv": "^16.4.0",
+    "redis": "^4.6.7",
+    "@socket.io/redis-adapter": "^8.2.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
@@ -36,6 +38,8 @@
     "node": "20.x"
   }
 }
+
+
 
 
 
