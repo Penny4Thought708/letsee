@@ -1,5 +1,9 @@
 // src/sockets/index.js
 // Production‑grade real‑time orchestration layer
+// Global call state (persists across reconnects)
+export const activeCalls = new Map();
+// key: userId
+// value: { callerId, receiverId, status }
 
 import registerPresence from "./presence.js";
 import registerMessages from "./messages.js";
@@ -226,6 +230,7 @@ export default function registerSockets(io, db) {
     });
   });
 }
+
 
 
 
