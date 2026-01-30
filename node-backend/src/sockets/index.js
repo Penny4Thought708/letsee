@@ -132,8 +132,27 @@ export default function registerSockets(io, db) {
       socket.userId = userId;
       socket.join(`user:${userId}`);
 
+      // 🔥 SINGLE‑DEVICE ENFORCEMENT
+      const existing = getSocketsForUser(userId);
+      for (const sid of existing) {
+        if (sid !== socket.id) {
+          log(`Forcing disconnect of old socket ${sid} for user ${userId}`);
+          const oldSocket = io.sockets.sockets.get(sid);
+          if (oldSocket) {
+            oldSocket.disconnect(true);
+          }
+          removeOnlineSocket(userId, sid);
+        }
+      }
+
       addOnlineUser(userId, socket.id);
       broadcastPresenceOnline(userId);
+
+      // Debug snapshot so you can SEE what the server thinks
+      console.log(
+        "[socket] ONLINE USERS SNAPSHOT:",
+        JSON.stringify([...onlineUsers.entries()], null, 2)
+      );
 
       log(`User ${userId} registered on socket ${socket.id}`);
     });
@@ -151,7 +170,7 @@ export default function registerSockets(io, db) {
     });
 
     /* ---------------------------
-       Feature Modules (NOW CORRECT)
+       Feature Modules
     --------------------------- */
     registerPresence(io, socket, onlineUsers, { getUserName });
 
@@ -198,9 +217,15 @@ export default function registerSockets(io, db) {
         broadcastPresenceOffline(uid);
         log(`User ${uid} is now offline`);
       }
+
+      console.log(
+        "[socket] ONLINE USERS SNAPSHOT (after disconnect):",
+        JSON.stringify([...onlineUsers.entries()], null, 2)
+      );
     });
   });
 }
+
 
 
 
