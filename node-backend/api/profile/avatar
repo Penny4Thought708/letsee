@@ -1,0 +1,32 @@
+const multer = require("multer");
+const path = require("path");
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: "uploads/avatars/",
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      const name = "avatar_" + Date.now() + ext;
+      cb(null, name);
+    }
+  })
+});
+
+router.post("/profile/avatar", upload.single("avatar"), async (req, res) => {
+  try {
+    const userId = req.session.user_id;
+    if (!userId) return res.json({ success: false, error: "Not logged in" });
+
+    const filename = req.file.filename;
+
+    await db.query(
+      "UPDATE users SET avatar = ? WHERE id = ?",
+      [filename, userId]
+    );
+
+    res.json({ success: true, avatar: "/uploads/avatars/" + filename });
+  } catch (err) {
+    console.error("Avatar upload error:", err);
+    res.json({ success: false, error: "Upload failed" });
+  }
+});
