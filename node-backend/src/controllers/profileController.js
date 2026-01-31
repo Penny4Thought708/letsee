@@ -8,7 +8,7 @@ export async function uploadAvatar(req, res) {
     const filename = req.file.filename;
 
     await db.query(
-      "UPDATE users SET avatar = $1 WHERE id = $2",
+      "UPDATE users SET avatar = $1 WHERE user_id = $2",
       [filename, userId]
     );
 
@@ -27,14 +27,13 @@ export async function enhanceAvatar(req, res) {
     const userId = req.session.user_id;
 
     const result = await db.query(
-      "SELECT avatar FROM users WHERE id = $1",
+      "SELECT avatar FROM users WHERE user_id = $1",
       [userId]
     );
 
     const avatar = result.rows[0]?.avatar;
     if (!avatar) return res.json({ success: false, error: "No avatar to enhance" });
 
-    // Placeholder: return same avatar
     res.json({ success: true, avatar });
   } catch (err) {
     console.error("Enhance error:", err);
@@ -46,7 +45,10 @@ export async function removeAvatar(req, res) {
   try {
     const userId = req.session.user_id;
 
-    await db.query("UPDATE users SET avatar = NULL WHERE id = $1", [userId]);
+    await db.query(
+      "UPDATE users SET avatar = NULL WHERE user_id = $1",
+      [userId]
+    );
 
     res.json({ success: true });
   } catch (err) {
@@ -82,7 +84,7 @@ export async function updateProfile(req, res) {
         show_online = $7,
         allow_messages = $8,
         avatar = $9
-      WHERE id = $10`,
+      WHERE user_id = $10`,
       [
         fullname,
         email,
@@ -90,8 +92,8 @@ export async function updateProfile(req, res) {
         website,
         twitter,
         instagram,
-        show_online ? 1 : 0,
-        allow_messages ? 1 : 0,
+        show_online ? true : false,
+        allow_messages ? true : false,
         avatar,
         userId
       ]
@@ -108,7 +110,10 @@ export async function deleteAccount(req, res) {
   try {
     const userId = req.session.user_id;
 
-    await db.query("DELETE FROM users WHERE id = $1", [userId]);
+    await db.query(
+      "DELETE FROM users WHERE user_id = $1",
+      [userId]
+    );
 
     req.session.destroy(() => {});
     res.json({ success: true });
@@ -117,3 +122,4 @@ export async function deleteAccount(req, res) {
     res.json({ success: false, error: "Failed to delete account" });
   }
 }
+
