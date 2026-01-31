@@ -22,9 +22,6 @@ router.post("/avatar", auth, uploadAvatar.single("avatar"), uploadAvatarCtrl);
 router.post("/avatar/enhance", auth, enhanceAvatar);
 router.delete("/avatar", auth, removeAvatar);
 
-// Banner
-router.post("/banner", auth, uploadBanner.single("banner"), uploadBannerCtrl);
-router.delete("/banner", auth, removeBanner);
 
 // Profile update (auto-save + manual save)
 router.put("/update", auth, updateProfile);
