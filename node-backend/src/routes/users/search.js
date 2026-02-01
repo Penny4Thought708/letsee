@@ -12,16 +12,16 @@ router.get("/search", authMiddleware, async (req, res) => {
 
     const result = await db.query(
       `SELECT 
-         user_id      AS contact_id,
-         fullname     AS contact_name,
-         email        AS contact_email,
-         avatar       AS contact_avatar,
-         phone        AS contact_phone,
-         bio          AS contact_bio,
-         website      AS contact_website,
-         twitter      AS contact_twitter,
-         instagram    AS contact_instagram,
-         banner       AS contact_banner
+         user_id      AS id,
+         fullname     AS name,
+         email,
+         avatar,
+         phone,
+         bio,
+         website,
+         twitter,
+         instagram,
+         banner
        FROM users
        WHERE user_id != $1
          AND (fullname ILIKE $2 OR email ILIKE $2)
@@ -42,5 +42,7 @@ router.get("/search", authMiddleware, async (req, res) => {
 });
 
 export default router;
+
+
 
 
