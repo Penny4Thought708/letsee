@@ -38,23 +38,23 @@ export default async function threadHandler(req, res) {
     /* -------------------------------------------------------
        2. Load voicemail messages
     ------------------------------------------------------- */
-    const { rows: voicemailRows } = await pool.query(
-      `
-      SELECT
-        id,
-        from_user AS sender_id,
-        to_user AS receiver_id,
-        file_path AS voicemail_url,
-        created_at,
-        'voicemail' AS type
-      FROM voicemail
-      WHERE 
-        (from_user = $1 AND to_user = $2)
-        OR
-        (from_user = $2 AND to_user = $1)
-      `,
-      [myUserId, contactId]
-    );
+   const { rows: voicemailRows } = await pool.query(
+  `
+  SELECT
+    id,
+    from_id AS sender_id,
+    user_id AS receiver_id,
+    audio_url AS voicemail_url,
+    created_at,
+    'voicemail' AS type
+  FROM voicemails
+  WHERE 
+    (from_id = $1 AND user_id = $2)
+    OR
+    (from_id = $2 AND user_id = $1)
+  `,
+  [myUserId, contactId]
+);
 
     /* -------------------------------------------------------
        3. Merge + sort by timestamp
@@ -83,6 +83,7 @@ export default async function threadHandler(req, res) {
     res.json({ success: false, error: "Server error" });
   }
 }
+
 
 
 
