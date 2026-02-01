@@ -13,19 +13,60 @@ export default async function threadHandler(req, res) {
 
     const contactId = req.params.contactId;
 
-    const { rows } = await pool.query(
+    /* -------------------------------------------------------
+       1. Load normal text/file messages
+    ------------------------------------------------------- */
+    const { rows: messageRows } = await pool.query(
       `
-      SELECT *
+      SELECT 
+        id,
+        sender_id,
+        receiver_id,
+        message AS text,
+        file_url,
+        created_at,
+        'message' AS type
       FROM private_messages
       WHERE 
         (sender_id = $1 AND receiver_id = $2)
         OR
         (sender_id = $2 AND receiver_id = $1)
-      ORDER BY created_at ASC
       `,
       [myUserId, contactId]
     );
 
+    /* -------------------------------------------------------
+       2. Load voicemail messages
+    ------------------------------------------------------- */
+    const { rows: voicemailRows } = await pool.query(
+      `
+      SELECT
+        id,
+        from_user AS sender_id,
+        to_user AS receiver_id,
+        file_path AS voicemail_url,
+        created_at,
+        'voicemail' AS type
+      FROM voicemail
+      WHERE 
+        (from_user = $1 AND to_user = $2)
+        OR
+        (from_user = $2 AND to_user = $1)
+      `,
+      [myUserId, contactId]
+    );
+
+    /* -------------------------------------------------------
+       3. Merge + sort by timestamp
+    ------------------------------------------------------- */
+    const combined = [...messageRows, ...voicemailRows].sort(
+      (a, b) => new Date(a.created_at) - new Date(b.created_at)
+    );
+
+    /* -------------------------------------------------------
+       4. Mark ONLY normal messages as read
+          (voicemail has its own "listened" endpoint)
+    ------------------------------------------------------- */
     await pool.query(
       `
       UPDATE private_messages
@@ -35,13 +76,14 @@ export default async function threadHandler(req, res) {
       [myUserId, contactId]
     );
 
-    res.json({ success: true, messages: rows });
+    res.json({ success: true, messages: combined });
 
   } catch (err) {
     console.error("[API /messages/thread] ERROR:", err);
     res.json({ success: false, error: "Server error" });
   }
 }
+
 
 
 
