@@ -8,8 +8,6 @@ router.get("/", async (req, res) => {
   try {
     const myUserId = req.session.user_id;
 
-    console.log("[API /call-logs] Session user_id:", myUserId);
-
     if (!myUserId) {
       return res.status(401).json({ success: false, error: "Not logged in" });
     }
@@ -22,11 +20,23 @@ router.get("/", async (req, res) => {
       SELECT 
         c.id,
         c.caller_id,
-        caller.fullname   AS caller_name,
-        caller.avatar     AS caller_avatar,
+        caller.fullname AS caller_name,
+
+        CASE
+          WHEN caller.avatar LIKE 'http%' THEN caller.avatar
+          WHEN caller.avatar LIKE '/uploads%' THEN caller.avatar
+          ELSE '/uploads/avatars/' || caller.avatar
+        END AS caller_avatar,
+
         c.receiver_id,
         receiver.fullname AS receiver_name,
-        receiver.avatar   AS receiver_avatar,
+
+        CASE
+          WHEN receiver.avatar LIKE 'http%' THEN receiver.avatar
+          WHEN receiver.avatar LIKE '/uploads%' THEN receiver.avatar
+          ELSE '/uploads/avatars/' || receiver.avatar
+        END AS receiver_avatar,
+
         c.call_type,
         c.direction,
         c.status,
@@ -55,6 +65,8 @@ router.get("/", async (req, res) => {
   }
 });
 
+
 export default router;
+
 
 
