@@ -44,11 +44,12 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 
     const filePath = `/uploads/voicemail/${file.filename}`;
 
-    await db.query(
-      `INSERT INTO voicemail (from_user, to_user, file_path, created_at)
-       VALUES ($1, $2, $3, NOW())`,
-      [fromUserId, toUserId, filePath]
-    );
+await db.query(
+  `INSERT INTO voicemails (from_id, user_id, audio_url, created_at)
+   VALUES ($1, $2, $3, NOW())`,
+  [fromUserId, toUserId, filePath]
+);
+
 
     return res.json({ success: true, file: filePath });
 
