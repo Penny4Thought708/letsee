@@ -1,12 +1,15 @@
+// node-backend/src/routes/messages/delete-for-me.js
 import db from "../../db.js";
 
 export default async function deleteForMeHandler(req, res) {
   try {
-    const userId = req.user.user_id;
+    const userId = req.session.user_id; // ✅ FIXED
     const { message_id } = req.body;
 
     if (!message_id) {
-      return res.status(400).json({ success: false, error: "Missing message_id" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing message_id" });
     }
 
     await db.query(
