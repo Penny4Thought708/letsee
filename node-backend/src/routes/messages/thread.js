@@ -4,14 +4,22 @@ import pool from "../../db.js";
 export default async function threadHandler(req, res) {
   try {
     const myUserId = req.session.user_id;
-
     if (!myUserId) {
       return res.status(401).json({ success: false, error: "Not logged in" });
     }
 
     const contactId = req.params.contactId;
+    const limit = Math.min(parseInt(req.query.limit || "50", 10), 200);
+    const sinceId = req.query.since_id ? Number(req.query.since_id) : null;
 
-    // Load normal messages + reactions
+    const params = [myUserId, contactId];
+    let sinceClause = "";
+
+    if (sinceId) {
+      sinceClause = "AND pm.id > $3";
+      params.push(sinceId);
+    }
+
     const { rows: messageRows } = await pool.query(
       `
       SELECT 
@@ -30,16 +38,19 @@ export default async function threadHandler(req, res) {
       LEFT JOIN message_reactions mr
         ON mr.message_id = pm.id
       WHERE 
-        (pm.sender_id = $1 AND pm.receiver_id = $2)
-        OR
-        (pm.sender_id = $2 AND pm.receiver_id = $1)
+        (
+          (pm.sender_id = $1 AND pm.receiver_id = $2)
+          OR
+          (pm.sender_id = $2 AND pm.receiver_id = $1)
+        )
+        ${sinceClause}
       GROUP BY pm.id
       ORDER BY pm.created_at ASC
+      LIMIT ${limit}
       `,
-      [myUserId, contactId]
+      params
     );
 
-    // Load voicemails
     const { rows: voicemailRows } = await pool.query(
       `
       SELECT
@@ -54,16 +65,15 @@ export default async function threadHandler(req, res) {
         (from_id = $1 AND user_id = $2)
         OR
         (from_id = $2 AND user_id = $1)
+      ORDER BY created_at ASC
       `,
       [myUserId, contactId]
     );
 
-    // Merge
     const combined = [...messageRows, ...voicemailRows].sort(
       (a, b) => new Date(a.created_at) - new Date(b.created_at)
     );
 
-    // Mark text messages as read
     await pool.query(
       `
       UPDATE private_messages
@@ -73,8 +83,13 @@ export default async function threadHandler(req, res) {
       [myUserId, contactId]
     );
 
-    res.json({ success: true, messages: combined });
-
+    res.json({
+      success: true,
+      messages: combined,
+      has_more: messageRows.length === limit,
+      last_id:
+        combined.length > 0 ? combined[combined.length - 1].id ?? null : null,
+    });
   } catch (err) {
     console.error("[API /messages/thread] ERROR:", err);
     res.json({ success: false, error: "Server error" });
