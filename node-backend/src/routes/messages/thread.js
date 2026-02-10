@@ -11,23 +11,30 @@ export default async function threadHandler(req, res) {
 
     const contactId = req.params.contactId;
 
-    // Load normal messages
+    // Load normal messages + reactions
     const { rows: messageRows } = await pool.query(
       `
       SELECT 
-        id,
-        sender_id,
-        receiver_id,
-        message AS text,
-        file_url,
-        created_at,
-        COALESCE(reactions, '[]') AS reactions,
-        'message' AS type
-      FROM private_messages
+        pm.id,
+        pm.sender_id,
+        pm.receiver_id,
+        pm.message AS text,
+        pm.file_url,
+        pm.created_at,
+        'message' AS type,
+        COALESCE(
+          json_agg(mr.emoji) FILTER (WHERE mr.emoji IS NOT NULL),
+          '[]'
+        ) AS reactions
+      FROM private_messages pm
+      LEFT JOIN message_reactions mr
+        ON mr.message_id = pm.id
       WHERE 
-        (sender_id = $1 AND receiver_id = $2)
+        (pm.sender_id = $1 AND pm.receiver_id = $2)
         OR
-        (sender_id = $2 AND receiver_id = $1)
+        (pm.sender_id = $2 AND pm.receiver_id = $1)
+      GROUP BY pm.id
+      ORDER BY pm.created_at ASC
       `,
       [myUserId, contactId]
     );
@@ -51,7 +58,7 @@ export default async function threadHandler(req, res) {
       [myUserId, contactId]
     );
 
-    // Merge + sort
+    // Merge
     const combined = [...messageRows, ...voicemailRows].sort(
       (a, b) => new Date(a.created_at) - new Date(b.created_at)
     );
