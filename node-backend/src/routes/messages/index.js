@@ -7,6 +7,9 @@ import sendHandler from "./send.js";
 import audioHandler from "./audio.js";
 import markReadHandler from "./markRead.js";   // ✅ ADD THIS
 import deleteHandler from "./delete.js";
+import reactHandler from "./react.js";
+
+
 
 
 const router = express.Router();
@@ -17,5 +20,7 @@ router.post("/send", authMiddleware, sendHandler);
 router.post("/audio", authMiddleware, audioHandler);
 router.post("/mark-read", authMiddleware, markReadHandler); // ✅ ADD THIS
 router.post("/delete", authMiddleware, deleteHandler);
+router.post("/react", authMiddleware, reactHandler);
 export default router;
+
 
