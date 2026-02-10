@@ -1,12 +1,8 @@
 // src/sockets/messages.js
-// Production‑grade messaging + audio messaging relay
+// Production‑grade messaging + audio + reactions relay
 
 export default function registerMessages(io, socket, db, { isBlocked, isDND }) {
   const toStr = (v) => (v == null ? null : String(v));
-
-  /* -------------------------------------------------------
-     Logging Helper
-  ------------------------------------------------------- */
   const log = (msg) => console.log(`[messages] ${msg}`);
 
   /* -------------------------------------------------------
@@ -26,7 +22,6 @@ export default function registerMessages(io, socket, db, { isBlocked, isDND }) {
       return;
     }
 
-    // Relay to both sender and receiver (multi‑device safe)
     io.to(`user:${toId}`).emit("message:new", msg);
     io.to(`user:${fromId}`).emit("message:new", msg);
 
@@ -50,9 +45,6 @@ export default function registerMessages(io, socket, db, { isBlocked, isDND }) {
       return;
     }
 
-    /* ---------------------------------------------------
-       DND → Convert audio message into voicemail
-    --------------------------------------------------- */
     if (isDND(target)) {
       log(`User ${target} is DND → storing voicemail from ${sender}`);
 
@@ -71,21 +63,73 @@ export default function registerMessages(io, socket, db, { isBlocked, isDND }) {
       return;
     }
 
-    /* ---------------------------------------------------
-       Normal audio message delivery
-    --------------------------------------------------- */
-    io.to(`user:${target}`).emit("message:audio", {
-      from: sender,
-      url
-    });
-
-    io.to(`user:${sender}`).emit("message:audio", {
-      from: sender,
-      url
-    });
+    io.to(`user:${target}`).emit("message:audio", { from: sender, url });
+    io.to(`user:${sender}`).emit("message:audio", { from: sender, url });
 
     log(`Delivered audio message from ${sender} → ${target}`);
   });
+
+  /* -------------------------------------------------------
+     MESSAGE REACTIONS
+  ------------------------------------------------------- */
+  socket.on("message:reaction", async ({ messageId, emoji }) => {
+    const userId = socket.userId;
+    if (!messageId || !emoji || !userId) {
+      log(`⚠️ Invalid message:reaction payload from socket ${socket.id}`);
+      return;
+    }
+
+    log(`Reaction received: user ${userId} → msg ${messageId} (${emoji})`);
+
+    try {
+      // Check if reaction already exists
+      const existing = await db.query(
+        `
+        SELECT id FROM message_reactions
+        WHERE message_id = $1 AND user_id = $2 AND emoji = $3
+        `,
+        [messageId, userId, emoji]
+      );
+
+      let action = "added";
+
+      if (existing.rows.length > 0) {
+        // Remove reaction
+        await db.query(
+          `
+          DELETE FROM message_reactions
+          WHERE message_id = $1 AND user_id = $2 AND emoji = $3
+          `,
+          [messageId, userId, emoji]
+        );
+        action = "removed";
+      } else {
+        // Add reaction
+        await db.query(
+          `
+          INSERT INTO message_reactions (message_id, user_id, emoji)
+          VALUES ($1, $2, $3)
+          `,
+          [messageId, userId, emoji]
+        );
+      }
+
+      // Broadcast to all devices of both users
+      io.emit("message:reaction:update", {
+        messageId,
+        emoji,
+        action,
+        from: userId
+      });
+
+      log(`Reaction ${action}: user ${userId} → msg ${messageId} (${emoji})`);
+
+    } catch (err) {
+      console.error("[messages] Reaction DB error:", err);
+    }
+  });
 }
+
+
 
 
