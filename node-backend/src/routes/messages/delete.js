@@ -1,8 +1,9 @@
+// node-backend/src/routes/messages/delete.js (legacy)
 import db from "../../db.js";
 
 export default async function deleteHandler(req, res) {
   try {
-    const userId = req.user.user_id;
+    const userId = req.session.user_id; // ✅ FIXED
     const { id } = req.body;
 
     if (!id) {
