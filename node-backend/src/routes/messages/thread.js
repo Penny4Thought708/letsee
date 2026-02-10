@@ -20,6 +20,7 @@ export default async function threadHandler(req, res) {
       params.push(sinceId);
     }
 
+    // ⭐ FIXED: Added JOIN + filter for delete‑for‑me
     const { rows: messageRows } = await pool.query(
       `
       SELECT 
@@ -37,8 +38,12 @@ export default async function threadHandler(req, res) {
       FROM private_messages pm
       LEFT JOIN message_reactions mr
         ON mr.message_id = pm.id
+      LEFT JOIN user_deleted_messages udm
+        ON udm.message_id = pm.id
+        AND udm.user_id = $1   -- ⭐ hide messages deleted by ME
       WHERE 
-        (
+        udm.message_id IS NULL -- ⭐ critical filter
+        AND (
           (pm.sender_id = $1 AND pm.receiver_id = $2)
           OR
           (pm.sender_id = $2 AND pm.receiver_id = $1)
@@ -95,6 +100,7 @@ export default async function threadHandler(req, res) {
     res.json({ success: false, error: "Server error" });
   }
 }
+
 
 
 
