@@ -8,6 +8,11 @@ import audioHandler from "./audio.js";
 import markReadHandler from "./markRead.js";   // ✅ ADD THIS
 import deleteHandler from "./delete.js";
 import reactHandler from "./react.js";
+import deleteForMeHandler from "./delete-for-me.js";
+import deleteForEveryoneHandler from "./delete-for-everyone.js";
+import restoreHandler from "./restore.js";
+
+
 
 
 
@@ -21,6 +26,10 @@ router.post("/audio", authMiddleware, audioHandler);
 router.post("/mark-read", authMiddleware, markReadHandler); // ✅ ADD THIS
 router.post("/delete", authMiddleware, deleteHandler);
 router.post("/react", authMiddleware, reactHandler);
+router.post("/delete-for-me", authMiddleware, deleteForMeHandler);
+router.post("/delete-for-everyone", authMiddleware, deleteForEveryoneHandler);
+router.post("/restore", authMiddleware, restoreHandler);
 export default router;
+
 
 
