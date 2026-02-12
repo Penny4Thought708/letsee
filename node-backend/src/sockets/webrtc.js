@@ -34,40 +34,53 @@ export default function registerWebRTC(io, socket, helpers = {}) {
     const callerId = socket.userId;
     const receiverId = to;
 
-    /* ---------------------------------------------------
-       OFFER → Start ringing + timeout
+      /* ---------------------------------------------------
+       OFFER → Start ringing + timeout (only if no active call)
+       Renegotiation offers keep existing call state
     --------------------------------------------------- */
     if (type === "offer") {
-      activeCalls.delete(callerId);
-      activeCalls.delete(receiverId);
+      const existing =
+        activeCalls.get(callerId) ||
+        activeCalls.get(receiverId);
 
-      const timeout = setTimeout(() => {
-        const call = activeCalls.get(callerId);
-        if (!call || call.status !== "ringing") return;
-
-        log(`⏳ Call timeout: ${callerId} → ${receiverId}`);
-
-        io.to(`user:${callerId}`).emit("call:timeout", { from: receiverId });
-        io.to(`user:${callerId}`).emit("call:voicemail", {
-          from: receiverId,
-          reason: "timeout"
-        });
-
+      // If there's already an ACTIVE call between these two,
+      // this is a renegotiation offer. Do NOT reset call state.
+      if (existing && existing.status === "active") {
+        log(`🔁 Renegotiation offer: ${callerId} ↔ ${receiverId} (keep active state)`);
+        // Just fall through to relay below.
+      } else {
+        // Fresh call: clear any stale state first
         activeCalls.delete(callerId);
         activeCalls.delete(receiverId);
-      }, 25000);
 
-      const callState = {
-        callerId,
-        receiverId,
-        status: "ringing",
-        timeout
-      };
+        const timeout = setTimeout(() => {
+          const call = activeCalls.get(callerId);
+          if (!call || call.status !== "ringing") return;
 
-      activeCalls.set(callerId, callState);
-      activeCalls.set(receiverId, callState);
+          log(`⏳ Call timeout: ${callerId} → ${receiverId}`);
 
-      log(`📞 Stored call state: ${callerId} → ${receiverId} (ringing)`);
+          io.to(`user:${callerId}`).emit("call:timeout", { from: receiverId });
+          io.to(`user:${callerId}`).emit("call:voicemail", {
+            from: receiverId,
+            reason: "timeout"
+          });
+
+          activeCalls.delete(callerId);
+          activeCalls.delete(receiverId);
+        }, 25000);
+
+        const callState = {
+          callerId,
+          receiverId,
+          status: "ringing",
+          timeout
+        };
+
+        activeCalls.set(callerId, callState);
+        activeCalls.set(receiverId, callState);
+
+        log(`📞 Stored call state: ${callerId} → ${receiverId} (ringing)`);
+      }
     }
 
     /* ---------------------------------------------------
@@ -254,6 +267,7 @@ export default function registerWebRTC(io, socket, helpers = {}) {
     }
   });
 }
+
 
 
 
