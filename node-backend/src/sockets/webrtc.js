@@ -7,7 +7,7 @@
 // 🔥 Global call state (exported so index.js can use it for recovery)
 export const activeCalls = new Map();
 // key: userId
-// value: { callerId, receiverId, status: "ringing" | "active", timeout? }
+// value: { callerId, receiverId, status: "ringing" | "active" | "ended", timeout? }
 
 export default function registerWebRTC(io, socket, helpers = {}) {
   const {
@@ -56,6 +56,12 @@ export default function registerWebRTC(io, socket, helpers = {}) {
 
       // Auto-timeout → voicemail after 25 seconds of ringing
       const timeout = setTimeout(() => {
+        const call = activeCalls.get(callerId);
+        // Only fire timeout if call is still ringing
+        if (!call || call.status !== "ringing") {
+          return;
+        }
+
         log(`⏳ Call timeout: ${callerId} → ${receiverId}`);
 
         io.to(`user:${callerId}`).emit("call:timeout", { from: receiverId });
@@ -81,7 +87,7 @@ export default function registerWebRTC(io, socket, helpers = {}) {
       log(`📞 Stored call state: ${callerId} → ${receiverId} (ringing)`);
     }
 
-    // 🔥 Mark call active on answer + clear timeout
+    // 🔥 Mark call active on answer + clear timeout (backup to call:accept)
     if (type === "answer") {
       const call = activeCalls.get(socket.userId);
       if (call) {
@@ -92,8 +98,25 @@ export default function registerWebRTC(io, socket, helpers = {}) {
         call.status = "active";
         activeCalls.set(call.callerId, call);
         activeCalls.set(call.receiverId, call);
-        log(`✅ Call active between ${call.callerId} ↔ ${call.receiverId}`);
+        log(`✅ Call active between ${call.callerId} ↔ ${call.receiverId} (via answer)`);
       }
+    }
+
+    // 🔥 Handle end sent via webrtc:signal (frontend uses this)
+    if (type === "end") {
+      const call =
+        activeCalls.get(callerId) ||
+        activeCalls.get(receiverId);
+
+      if (call && call.timeout) {
+        clearTimeout(call.timeout);
+      }
+
+      activeCalls.delete(call?.callerId);
+      activeCalls.delete(call?.receiverId);
+
+      log(`📞 webrtc:signal 'end' from ${callerId} → ${receiverId} (state cleared)`);
+      // Relay to other side happens below as usual
     }
 
     // Block check
@@ -135,7 +158,41 @@ export default function registerWebRTC(io, socket, helpers = {}) {
   });
 
   /* -------------------------------------------------------
-     Call End
+     Explicit Call Accept (from frontend)
+     Used by WebRTCController.answerIncomingCall()
+  ------------------------------------------------------- */
+  socket.on("call:accept", ({ to } = {}) => {
+    if (!to) {
+      log(`⚠️ call:accept missing 'to' from user ${socket.userId}`);
+      return;
+    }
+
+    const accepterId = socket.userId;
+    const otherId = to;
+
+    const call =
+      activeCalls.get(accepterId) ||
+      activeCalls.get(otherId);
+
+    if (!call) {
+      log(`❌ call:accept with no active ringing call for ${accepterId}`);
+      return;
+    }
+
+    if (call.timeout) {
+      clearTimeout(call.timeout);
+      call.timeout = null;
+    }
+
+    call.status = "active";
+    activeCalls.set(call.callerId, call);
+    activeCalls.set(call.receiverId, call);
+
+    log(`✅ Call active between ${call.callerId} ↔ ${call.receiverId} (via call:accept)`);
+  });
+
+  /* -------------------------------------------------------
+     Call End (legacy path, if used)
   ------------------------------------------------------- */
   socket.on("call:end", ({ to } = {}) => {
     if (!to) {
@@ -259,7 +316,7 @@ export default function registerWebRTC(io, socket, helpers = {}) {
 
         if (timeout) clearTimeout(timeout);
 
-        // If the receiver disappears while ringing/active → missed call → voicemail
+        // If the receiver disappears while ringing → missed call → voicemail
         if (receiverId === userId && status === "ringing") {
           log(`📵 Missed call: ${callerId} → ${receiverId}`);
 
@@ -276,6 +333,7 @@ export default function registerWebRTC(io, socket, helpers = {}) {
     }
   });
 }
+
 
 
 
