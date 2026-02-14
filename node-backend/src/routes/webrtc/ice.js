@@ -7,7 +7,7 @@ router.get("/get-ice", async (req, res) => {
   try {
     const body = JSON.stringify({ format: "urls" });
 
-const response = await fetch("https://service.xirsys.com/_turn/MyApp2", {
+const response = await fetch("https://api.xirsys.com/_turn/MyApp2", {
   method: "PUT",
   headers: {
     "Authorization":
