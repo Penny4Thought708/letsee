@@ -20,15 +20,19 @@ router.get("/get-ice", async (req, res) => {
 
     const data = await response.json();
 
-    let iceServers = Array.isArray(data?.v?.iceServers)
+    // Return EXACTLY what Xirsys provides
+    const iceServers = Array.isArray(data?.v?.iceServers)
       ? data.v.iceServers
       : [];
 
-    // Normalize urls to arrays
-    iceServers = iceServers.map((s) => {
-      const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
-      return { ...s, urls };
-    });
+    return res.json({ iceServers });
+  } catch (err) {
+    console.error("[ICE] Xirsys error:", err);
+    return res.json({ iceServers: [] });
+  }
+});
+
+
 
     // 🔥 HARD FILTER: only TURN/TLS on 443 with TCP
     iceServers = iceServers
