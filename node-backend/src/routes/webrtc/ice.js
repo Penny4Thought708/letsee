@@ -12,7 +12,7 @@ router.get("/get-ice", async (req, res) => {
       headers: {
         "Authorization":
           "Basic " +
-          Buffer.from("bobbywatts:9abbe54c-09ad-11f1-aa18-0242ac150002").toString("base64"),
+           Buffer.from("bobbywatts:ed2ddae6-09b8-11f1-97f8-0242ac150006").toString("base64"),
         "Content-Type": "application/json",
         "Content-Length": body.length.toString(),
       },
