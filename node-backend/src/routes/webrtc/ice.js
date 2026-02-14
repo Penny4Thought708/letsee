@@ -7,17 +7,16 @@ router.get("/get-ice", async (req, res) => {
   try {
     const body = JSON.stringify({ format: "urls" });
 
-    const response = await fetch("https://global.xirsys.net/_turn/MyApp2", {
-      method: "PUT",
-      headers: {
-        "Authorization":
-          "Basic " +
-           Buffer.from("bobbywatts:ed2ddae6-09b8-11f1-97f8-0242ac150006").toString("base64"),
-        "Content-Type": "application/json",
-        "Content-Length": body.length.toString(),
-      },
-      body,
-    });
+const response = await fetch("https://service.xirsys.com/_turn/MyApp2", {
+  method: "PUT",
+  headers: {
+    "Authorization":
+      "Basic " +
+      Buffer.from("bobbywatts:ed2ddae6-09b8-11f1-97f8-0242ac150006").toString("base64"),
+    "Content-Type": "application/json",
+  },
+  body,
+});
 
     const text = await response.text();
     let data = null;
