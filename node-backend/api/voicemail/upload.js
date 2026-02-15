@@ -24,37 +24,37 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-router.post("/upload", upload.single("file"), async (req, res) => {
+router.get("/list", async (req, res) => {
   try {
-    const fromUserId = req.session.user_id;
-    const toUserId = req.body.toUserId;
-    const file = req.file;
-
-    if (!fromUserId) {
+    const userId = req.session.user_id;
+    if (!userId) {
       return res.json({ success: false, error: "Not authenticated" });
     }
 
-    if (!toUserId) {
-      return res.json({ success: false, error: "Missing toUserId" });
-    }
-
-    if (!file) {
-      return res.json({ success: false, error: "No file uploaded" });
-    }
-
-    const filePath = `/uploads/voicemail/${file.filename}`;
-
-    // Save voicemail metadata to DB
-    await db.query(
-      `INSERT INTO voicemail (from_user, to_user, file_path, created_at)
-       VALUES ($1, $2, $3, NOW())`,
-      [fromUserId, toUserId, filePath]
+    const result = await db.query(
+      `
+      SELECT 
+        v.id,
+        v.from_id,
+        u.name AS from_name,
+        u.avatar_url AS from_avatar,
+        v.audio_url,
+        v.transcript,
+        v.timestamp,
+        v.listened,
+        v.peaks_json
+      FROM voicemail v
+      JOIN users u ON u.id = v.from_id
+      WHERE v.user_id = $1
+      ORDER BY v.timestamp DESC
+      `,
+      [userId]
     );
 
-    return res.json({ success: true, file: filePath });
+    return res.json({ success: true, voicemails: result.rows });
 
   } catch (err) {
-    console.error("[voicemail upload] ERROR:", err);
+    console.error("[voicemail list] ERROR:", err);
     return res.json({ success: false, error: "Server error" });
   }
 });
