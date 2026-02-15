@@ -10,12 +10,13 @@ export default async function listHandler(req, res) {
 
     const result = await db.query(
       `
-      SELECT 
+         SELECT 
         v.id,
         v.user_id,
         v.from_id,
         u.fullname AS from_name,
         u.avatar AS from_avatar,
+        u.theme AS from_theme,
         v.audio_url,
         v.transcript,
         v.peaks_json,
@@ -26,6 +27,7 @@ export default async function listHandler(req, res) {
       WHERE v.user_id = $1
       ORDER BY v.id DESC
       LIMIT 100
+
       `,
       [myUserId]
     );
@@ -40,6 +42,7 @@ export default async function listHandler(req, res) {
     res.status(500).json({ success: false, error: "Database error" });
   }
 }
+
 
 
 
