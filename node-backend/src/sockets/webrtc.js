@@ -9,12 +9,7 @@ export const activeCalls = new Map();
 // value: { callerId, receiverId, status: "ringing" | "active" | "ended", timeout? }
 
 export default function registerWebRTC(io, socket, helpers = {}) {
-  const {
-    isBlocked,
-    isDND,
-    getSocketsForUser,
-    getUserName
-  } = helpers;
+  const { isBlocked, isDND, getSocketsForUser, getUserName } = helpers;
 
   const log = (...args) => console.log("[webrtc]", ...args);
 
@@ -34,19 +29,20 @@ export default function registerWebRTC(io, socket, helpers = {}) {
     const callerId = socket.userId;
     const receiverId = to;
 
-      /* ---------------------------------------------------
+    /* ---------------------------------------------------
        OFFER → Start ringing + timeout (only if no active call)
        Renegotiation offers keep existing call state
     --------------------------------------------------- */
     if (type === "offer") {
       const existing =
-        activeCalls.get(callerId) ||
-        activeCalls.get(receiverId);
+        activeCalls.get(callerId) || activeCalls.get(receiverId);
 
       // If there's already an ACTIVE call between these two,
       // this is a renegotiation offer. Do NOT reset call state.
       if (existing && existing.status === "active") {
-        log(`🔁 Renegotiation offer: ${callerId} ↔ ${receiverId} (keep active state)`);
+        log(
+          `🔁 Renegotiation offer: ${callerId} ↔ ${receiverId} (keep active state)`
+        );
         // Just fall through to relay below.
       } else {
         // Fresh call: clear any stale state first
@@ -55,14 +51,20 @@ export default function registerWebRTC(io, socket, helpers = {}) {
 
         const timeout = setTimeout(() => {
           const call = activeCalls.get(callerId);
-          if (!call || call.status !== "ringing") return;
+          if (!call) return;
+
+          // If call became active, ignore timeout
+          if (call.status === "active") return;
+          if (call.status !== "ringing") return;
 
           log(`⏳ Call timeout: ${callerId} → ${receiverId}`);
 
-          io.to(`user:${callerId}`).emit("call:timeout", { from: receiverId });
+          io.to(`user:${callerId}`).emit("call:timeout", {
+            from: receiverId,
+          });
           io.to(`user:${callerId}`).emit("call:voicemail", {
             from: receiverId,
-            reason: "timeout"
+            reason: "timeout",
           });
 
           activeCalls.delete(callerId);
@@ -73,13 +75,24 @@ export default function registerWebRTC(io, socket, helpers = {}) {
           callerId,
           receiverId,
           status: "ringing",
-          timeout
+          timeout,
         };
 
         activeCalls.set(callerId, callState);
         activeCalls.set(receiverId, callState);
 
-        log(`📞 Stored call state: ${callerId} → ${receiverId} (ringing)`);
+        log(
+          `📞 Stored call state: ${callerId} → ${receiverId} (ringing)`
+        );
+
+        // 🔔 Notify callee of inbound call (UI-level event)
+        io.to(`user:${receiverId}`).emit("call:start", {
+          from: callerId,
+          type:
+            data.offer?.sdp && data.offer.sdp.includes("m=video")
+              ? "video"
+              : "voice",
+        });
       }
     }
 
@@ -98,7 +111,9 @@ export default function registerWebRTC(io, socket, helpers = {}) {
         activeCalls.set(call.callerId, call);
         activeCalls.set(call.receiverId, call);
 
-        log(`✅ Call active (via answer) ${call.callerId} ↔ ${call.receiverId}`);
+        log(
+          `✅ Call active (via answer) ${call.callerId} ↔ ${call.receiverId}`
+        );
 
         const otherId =
           socket.userId === call.callerId ? call.receiverId : call.callerId;
@@ -115,13 +130,14 @@ export default function registerWebRTC(io, socket, helpers = {}) {
     --------------------------------------------------- */
     if (type === "end") {
       const call =
-        activeCalls.get(callerId) ||
-        activeCalls.get(receiverId);
+        activeCalls.get(callerId) || activeCalls.get(receiverId);
 
       if (call?.timeout) clearTimeout(call.timeout);
 
-      activeCalls.delete(call?.callerId);
-      activeCalls.delete(call?.receiverId);
+      if (call) {
+        activeCalls.delete(call.callerId);
+        activeCalls.delete(call.receiverId);
+      }
 
       log(`📞 webrtc:signal 'end' from ${callerId} → ${receiverId}`);
     }
@@ -129,7 +145,7 @@ export default function registerWebRTC(io, socket, helpers = {}) {
     /* ---------------------------------------------------
        Block / DND checks
     --------------------------------------------------- */
-    if (isBlocked && await isBlocked(to, socket.userId)) {
+    if (isBlocked && (await isBlocked(to, socket.userId))) {
       log(`🚫 Blocked: ${socket.userId} → ${to}`);
       return;
     }
@@ -140,7 +156,7 @@ export default function registerWebRTC(io, socket, helpers = {}) {
       io.to(`user:${socket.userId}`).emit("call:dnd", { from: to });
       io.to(`user:${socket.userId}`).emit("call:voicemail", {
         from: to,
-        reason: "dnd"
+        reason: "dnd",
       });
 
       return;
@@ -158,11 +174,13 @@ export default function registerWebRTC(io, socket, helpers = {}) {
     for (const sid of targets) {
       io.to(sid).emit("webrtc:signal", {
         ...data,
-        from: socket.userId
+        from: socket.userId,
       });
     }
 
-    log(`📡 Relayed '${type}' from ${socket.userId} → ${to} (${targets.length} devices)`);
+    log(
+      `📡 Relayed '${type}' from ${socket.userId} → ${to} (${targets.length} devices)`
+    );
   });
 
   /* -------------------------------------------------------
@@ -175,8 +193,7 @@ export default function registerWebRTC(io, socket, helpers = {}) {
     const otherId = to;
 
     const call =
-      activeCalls.get(accepterId) ||
-      activeCalls.get(otherId);
+      activeCalls.get(accepterId) || activeCalls.get(otherId);
 
     if (!call) {
       return log(`❌ call:accept with no active ringing call`);
@@ -191,7 +208,9 @@ export default function registerWebRTC(io, socket, helpers = {}) {
     activeCalls.set(call.callerId, call);
     activeCalls.set(call.receiverId, call);
 
-    log(`✅ Call active (via call:accept) ${call.callerId} ↔ ${call.receiverId}`);
+    log(
+      `✅ Call active (via call:accept) ${call.callerId} ↔ ${call.receiverId}`
+    );
 
     const targets = getSocketsForUser?.(otherId) || [];
     for (const sid of targets) {
@@ -209,11 +228,18 @@ export default function registerWebRTC(io, socket, helpers = {}) {
     const otherId = to;
 
     const call =
-      activeCalls.get(declinerId) ||
-      activeCalls.get(otherId);
+      activeCalls.get(declinerId) || activeCalls.get(otherId);
 
     if (!call) {
       return log(`❌ call:decline with no active call`);
+    }
+
+    // If call is already active, ignore decline
+    if (call.status === "active") {
+      log(
+        `⚠️ Ignored call:decline for active call ${call.callerId} ↔ ${call.receiverId}`
+      );
+      return;
     }
 
     if (call.timeout) {
@@ -226,10 +252,12 @@ export default function registerWebRTC(io, socket, helpers = {}) {
     const notifyId =
       declinerId === call.callerId ? call.receiverId : call.callerId;
 
-    io.to(`user:${notifyId}`).emit("call:declined", { from: declinerId });
+    io.to(`user:${notifyId}`).emit("call:declined", {
+      from: declinerId,
+    });
     io.to(`user:${notifyId}`).emit("call:voicemail", {
       from: declinerId,
-      reason: "declined"
+      reason: "declined",
     });
 
     activeCalls.delete(call.callerId);
@@ -251,13 +279,16 @@ export default function registerWebRTC(io, socket, helpers = {}) {
 
         if (timeout) clearTimeout(timeout);
 
+        // Only treat as missed if it was still ringing
         if (receiverId === userId && status === "ringing") {
           log(`📵 Missed call: ${callerId} → ${receiverId}`);
 
-          io.to(`user:${callerId}`).emit("call:missed", { from: receiverId });
+          io.to(`user:${callerId}`).emit("call:missed", {
+            from: receiverId,
+          });
           io.to(`user:${callerId}`).emit("call:voicemail", {
             from: receiverId,
-            reason: "missed"
+            reason: "missed",
           });
         }
 
