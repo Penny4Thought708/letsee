@@ -52,8 +52,18 @@ export default function registerWebRTC(io, socket, helpers = {}) {
         const timeout = setTimeout(() => {
           const call = activeCalls.get(callerId);
 
-          // If call no longer exists, or is no longer ringing, ignore
+          // If call no longer exists, ignore
           if (!call) return;
+
+          // If timeout reference was cleared when call became active, ignore
+          if (!call.timeout) {
+            log(
+              `⏳ Timeout ignored — timeout cleared for ${call.callerId} ↔ ${call.receiverId}`
+            );
+            return;
+          }
+
+          // Only fire timeout if still ringing
           if (call.status !== "ringing") {
             log(
               `⏳ Timeout ignored — call no longer ringing (${call.status}) ${call.callerId} ↔ ${call.receiverId}`
@@ -108,7 +118,7 @@ export default function registerWebRTC(io, socket, helpers = {}) {
       if (call) {
         if (call.timeout) {
           clearTimeout(call.timeout);
-          call.timeout = null;
+          call.timeout = null; // ⭐ ensure timeout callback knows it's invalid
         }
 
         call.status = "active";
@@ -316,8 +326,6 @@ export default function registerWebRTC(io, socket, helpers = {}) {
     }
   });
 }
-
-
 
 
 
