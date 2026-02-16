@@ -51,11 +51,15 @@ export default function registerWebRTC(io, socket, helpers = {}) {
 
         const timeout = setTimeout(() => {
           const call = activeCalls.get(callerId);
-          if (!call) return;
 
-          // If call became active, ignore timeout
-          if (call.status === "active") return;
-          if (call.status !== "ringing") return;
+          // If call no longer exists, or is no longer ringing, ignore
+          if (!call) return;
+          if (call.status !== "ringing") {
+            log(
+              `⏳ Timeout ignored — call no longer ringing (${call.status}) ${call.callerId} ↔ ${call.receiverId}`
+            );
+            return;
+          }
 
           log(`⏳ Call timeout: ${callerId} → ${receiverId}`);
 
@@ -126,17 +130,31 @@ export default function registerWebRTC(io, socket, helpers = {}) {
     }
 
     /* ---------------------------------------------------
-       END → Clear state
+       END → Clear state + notify other side
     --------------------------------------------------- */
     if (type === "end") {
       const call =
         activeCalls.get(callerId) || activeCalls.get(receiverId);
 
-      if (call?.timeout) clearTimeout(call.timeout);
+      if (call?.timeout) {
+        clearTimeout(call.timeout);
+        call.timeout = null;
+      }
 
       if (call) {
-        activeCalls.delete(call.callerId);
-        activeCalls.delete(call.receiverId);
+        const { callerId: cId, receiverId: rId } = call;
+        const otherId = socket.userId === cId ? rId : cId;
+
+        // Notify the other side that the call ended
+        if (otherId) {
+          io.to(`user:${otherId}`).emit("call:end", {
+            from: socket.userId,
+            reason: data.reason || "hangup",
+          });
+        }
+
+        activeCalls.delete(cId);
+        activeCalls.delete(rId);
       }
 
       log(`📞 webrtc:signal 'end' from ${callerId} → ${receiverId}`);
