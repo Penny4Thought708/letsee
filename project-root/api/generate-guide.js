@@ -37,5 +37,50 @@ router.get("/", async (req, res) => {
 
   res.json({ url: `/guides/${slug}.html`, existed: false });
 });
+function generateGuideFromQuery(query) {
+  const title = toTitleCase(query);
+  const category = detectCategory(query);
+
+  return `
+  <main class="guide-page">
+    <header class="guide-hero">
+      <h1>${title}</h1>
+      <p class="guide-subtitle">Difficulty: Beginner • Time: 1–3 hours</p>
+    </header>
+
+    <section class="guide-section">
+      <h2>Tools & Materials</h2>
+      <ul class="guide-list">
+        <li>Safety gear</li>
+        <li>Measuring tools</li>
+        <li>Basic DIY tools</li>
+      </ul>
+    </section>
+
+    <section class="guide-section">
+      <h2>Step‑by‑Step Instructions</h2>
+      <ol class="guide-steps">
+        <li>Prepare your workspace.</li>
+        <li>Gather materials.</li>
+        <li>Follow installation steps.</li>
+        <li>Finish and clean up.</li>
+      </ol>
+    </section>
+
+    <section class="guide-section">
+      <h2>Tips & Safety</h2>
+      <p>Always follow manufacturer safety guidelines.</p>
+    </section>
+  </main>
+  `;
+}
+function detectCategory(query) {
+  if (query.includes("floor")) return "Flooring";
+  if (query.includes("paint")) return "Painting";
+  if (query.includes("bath")) return "Bathroom";
+  if (query.includes("light")) return "Lighting";
+  if (query.includes("outdoor")) return "Outdoor";
+  return "General";
+}
 
 export default router;
