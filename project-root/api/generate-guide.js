@@ -21,86 +21,91 @@ router.get("/", async (req, res, next) => {
       });
     }
 
-    // Generate guide content (AI + template)
+    // 1) Get structured guide from AI
     const ai = await generateGuideAI(q);
-    // For now, we still use our HTML template; you can later inject `ai` into it
-    const guide = generateGuideFromQuery(q);
+    // ai is expected to have: title, difficulty, time, tools[], steps[], safety[]
 
-    // Save guide HTML
+    // 2) Turn AI output into full HTML page
+    const guide = generateGuideHTML(ai);
+
+    // 3) Save guide HTML
     fs.writeFileSync(guidePath, guide, "utf8");
 
-    // Add card to search index
+    // 4) Add card to search index
     const projectsPath = path.join("data", "projects.json");
     const projectsRaw = fs.readFileSync(projectsPath, "utf8") || "[]";
     const projects = JSON.parse(projectsRaw);
 
-    projects.push({
-      name: toTitleCase(q),
+    const card = {
+      name: ai.title || toTitleCase(q),
       category: detectCategory(q),
       url: `/guides/${slug}.html`,
-      desc: `A complete step-by-step guide for ${escapeText(q)}.`,
+      desc: ai.steps?.[0] || `A complete step-by-step guide for ${escapeText(q)}.`,
       img: "/img/default-guide.jpg"
-    });
+    };
 
+    projects.push(card);
     fs.writeFileSync(projectsPath, JSON.stringify(projects, null, 2), "utf8");
 
+    // 5) Return URL + card for immediate frontend display
     res.json({
       url: `/guides/${slug}.html`,
       existed: false,
-      card: {
-        name: toTitleCase(q),
-        category: detectCategory(q),
-        url: `/guides/${slug}.html`,
-        desc: `A complete step-by-step guide for ${escapeText(q)}.`,
-        img: "/img/default-guide.jpg"
-      }
+      card
     });
   } catch (err) {
     next(err);
   }
 });
 
-function generateGuideFromQuery(query) {
-  const title = toTitleCase(query);
-  const safeTitle = escapeHtml(title);
+/**
+ * Build full HTML page from AI output
+ */
+function generateGuideHTML(ai) {
+  const title = escapeHtml(ai.title || "DIY Guide");
+  const difficulty = escapeHtml(ai.difficulty || "Unknown");
+  const time = escapeHtml(ai.time || "Varies");
+
+  const tools = Array.isArray(ai.tools) ? ai.tools : [];
+  const steps = Array.isArray(ai.steps) ? ai.steps : [];
+  const safety = Array.isArray(ai.safety) ? ai.safety : [];
 
   return `
   <!DOCTYPE html>
   <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>${safeTitle}</title>
+    <title>${title}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   </head>
   <body>
     <main class="guide-page">
       <header class="guide-hero">
-        <h1>${safeTitle}</h1>
-        <p class="guide-subtitle">Difficulty: Beginner • Time: 1–3 hours</p>
+        <h1>${title}</h1>
+        <p class="guide-subtitle">
+          Difficulty: ${difficulty} • Time: ${time}
+        </p>
       </header>
 
       <section class="guide-section">
         <h2>Tools &amp; Materials</h2>
         <ul class="guide-list">
-          <li>Safety gear</li>
-          <li>Measuring tools</li>
-          <li>Basic DIY tools</li>
+          ${tools.map(t => `<li>${escapeHtml(t)}</li>`).join("")}
         </ul>
       </section>
 
       <section class="guide-section">
         <h2>Step‑by‑Step Instructions</h2>
         <ol class="guide-steps">
-          <li>Prepare your workspace.</li>
-          <li>Gather materials.</li>
-          <li>Follow installation steps.</li>
-          <li>Finish and clean up.</li>
+          ${steps.map(s => `<li>${escapeHtml(s)}</li>`).join("")}
         </ol>
       </section>
 
       <section class="guide-section">
-        <h2>Tips &amp; Safety</h2>
-        <p>Always follow manufacturer safety guidelines.</p>
+        <h2>Safety Notes</h2>
+        <ul class="guide-list">
+          ${safety.map(s => `<li>${escapeHtml(s)}</li>`).join("")}
+        </ul>
       </section>
     </main>
   </body>
