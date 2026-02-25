@@ -36,7 +36,7 @@ const guide = generateGuideHTML(ai);
       category: detectCategory(q),
       url: `/guides/${slug}.html`,
       desc: `A complete step-by-step guide for ${escapeText(q)}.`,
-      img: "/img/default-guide.jpg"
+      img: "./img/default-guide.jpg"
     });
 
     fs.writeFileSync(projectsPath, JSON.stringify(projects, null, 2), "utf8");
