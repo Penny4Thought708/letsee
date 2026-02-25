@@ -15,13 +15,16 @@ router.get("/", async (req, res, next) => {
 
     // If guide already exists, return it
     if (fs.existsSync(guidePath)) {
-      return res.json({ url: `/guides/${slug}.html`, existed: true });
+      return res.json({
+        url: `/guides/${slug}.html`,
+        existed: true
+      });
     }
 
-    // Generate guide content
-  const ai = await generateGuideAI(q);
-const guide = generateGuideHTML(ai);
-
+    // Generate guide content (AI + template)
+    const ai = await generateGuideAI(q);
+    // For now, we still use our HTML template; you can later inject `ai` into it
+    const guide = generateGuideFromQuery(q);
 
     // Save guide HTML
     fs.writeFileSync(guidePath, guide, "utf8");
@@ -36,12 +39,22 @@ const guide = generateGuideHTML(ai);
       category: detectCategory(q),
       url: `/guides/${slug}.html`,
       desc: `A complete step-by-step guide for ${escapeText(q)}.`,
-      img: "./img/default-guide.jpg"
+      img: "/img/default-guide.jpg"
     });
 
     fs.writeFileSync(projectsPath, JSON.stringify(projects, null, 2), "utf8");
 
-    res.json({ url: `/guides/${slug}.html`, existed: false });
+    res.json({
+      url: `/guides/${slug}.html`,
+      existed: false,
+      card: {
+        name: toTitleCase(q),
+        category: detectCategory(q),
+        url: `/guides/${slug}.html`,
+        desc: `A complete step-by-step guide for ${escapeText(q)}.`,
+        img: "/img/default-guide.jpg"
+      }
+    });
   } catch (err) {
     next(err);
   }
@@ -127,7 +140,6 @@ function escapeHtml(str = "") {
     .replace(/'/g, "&#39;");
 }
 
-// For non-HTML text fields (like desc)
 function escapeText(str = "") {
   return str.replace(/\s+/g, " ").trim();
 }
