@@ -4,6 +4,8 @@ import path from "path";
 import generateGuide from "./api/generate-guide.js";
 import getGuide from "./api/get-guide.js";
 import search from "./api/search.js";
+import admin from "./api/admin.js";
+
 
 const app = express();
 
@@ -23,7 +25,7 @@ app.use(express.static("public"));
 app.use("/api/generate-guide", generateGuide);
 app.use("/api/guide", getGuide);
 app.use("/api/search", search);
-
+app.use("/api/admin", admin);
 // Basic error handler
 app.use((err, req, res, next) => {
   console.error(err);
