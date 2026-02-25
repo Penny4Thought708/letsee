@@ -9,7 +9,6 @@ function scoreProject(project, q) {
   const query = q.toLowerCase();
   let score = 0;
 
-  // Weighted scoring
   if (project.name.toLowerCase().includes(query)) score += 5;
   if (project.category.toLowerCase().includes(query)) score += 3;
   if (project.desc.toLowerCase().includes(query)) score += 1;
@@ -37,7 +36,7 @@ router.get("/", (req, res, next) => {
         limit,
         total: projects.length,
         totalPages: Math.ceil(projects.length / limit),
-        results: projects.slice(start, end)
+        results: projects.slice(start, end).map(stripURL)
       });
     }
 
@@ -61,7 +60,7 @@ router.get("/", (req, res, next) => {
     // Pagination
     const start = (page - 1) * limit;
     const end = start + limit;
-    const paginated = ranked.slice(start, end);
+    const paginated = ranked.slice(start, end).map(stripURL);
 
     res.json({
       page,
@@ -76,5 +75,12 @@ router.get("/", (req, res, next) => {
   }
 });
 
-export default router;
+// Remove URL so frontend does not navigate away
+function stripURL(project) {
+  return {
+    ...project,
+    url: null
+  };
+}
 
+export default router;
