@@ -13,106 +13,119 @@ router.get("/", async (req, res, next) => {
     const slug = slugify(q);
     const guidePath = path.join("public", "guides", `${slug}.html`);
 
-    // If guide already exists, return it
+    // If guide already exists, return JSON for frontend rendering
     if (fs.existsSync(guidePath)) {
+      const card = buildCardFromExisting(q, slug);
       return res.json({
+        existed: true,
         url: `/guides/${slug}.html`,
-        existed: true
+        card
       });
     }
 
-    // 1) Get structured guide from AI
+    // 1) Generate structured guide from AI
     const ai = await generateGuideAI(q);
-    // ai is expected to have: title, difficulty, time, tools[], steps[], safety[]
 
-    // 2) Turn AI output into full HTML page
-    const guide = generateGuideHTML(ai);
+    // 2) Save HTML version (for SEO + direct linking)
+    const html = buildGuideHTML(ai);
+    fs.writeFileSync(guidePath, html, "utf8");
 
-    // 3) Save guide HTML
-    fs.writeFileSync(guidePath, guide, "utf8");
-
-    // 4) Add card to search index
-    const projectsPath = path.join("data", "projects.json");
-    const projectsRaw = fs.readFileSync(projectsPath, "utf8") || "[]";
-    const projects = JSON.parse(projectsRaw);
-
+    // 3) Build card object for search index + frontend
     const card = {
-      name: ai.title || toTitleCase(q),
+      name: ai.title,
       category: detectCategory(q),
       url: `/guides/${slug}.html`,
       desc: ai.steps?.[0] || `A complete step-by-step guide for ${escapeText(q)}.`,
       img: "/img/default-guide.jpg"
     };
 
+    // 4) Save card to search index
+    const projectsPath = path.join("data", "projects.json");
+    const projects = JSON.parse(fs.readFileSync(projectsPath, "utf8") || "[]");
     projects.push(card);
     fs.writeFileSync(projectsPath, JSON.stringify(projects, null, 2), "utf8");
 
-    // 5) Return URL + card for immediate frontend display
+    // 5) Return JSON for frontend to render inside the page
     res.json({
-      url: `/guides/${slug}.html`,
       existed: false,
+      guide: ai,
       card
     });
+
   } catch (err) {
     next(err);
   }
 });
 
-/**
- * Build full HTML page from AI output
- */
-function generateGuideHTML(ai) {
-  const title = escapeHtml(ai.title || "DIY Guide");
-  const difficulty = escapeHtml(ai.difficulty || "Unknown");
-  const time = escapeHtml(ai.time || "Varies");
-
-  const tools = Array.isArray(ai.tools) ? ai.tools : [];
-  const steps = Array.isArray(ai.steps) ? ai.steps : [];
-  const safety = Array.isArray(ai.safety) ? ai.safety : [];
+/* ============================================================
+   BUILD HTML FILE (SEO + direct link only)
+   FRONTEND DOES NOT USE THIS HTML
+============================================================ */
+function buildGuideHTML(ai) {
+  const title = escapeHtml(ai.title);
+  const difficulty = escapeHtml(ai.difficulty);
+  const time = escapeHtml(ai.time);
 
   return `
-  <!DOCTYPE html>
-  <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>${title}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  </head>
-  <body>
-    <main class="guide-page">
-      <header class="guide-hero">
-        <h1>${title}</h1>
-        <p class="guide-subtitle">
-          Difficulty: ${difficulty} • Time: ${time}
-        </p>
-      </header>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/project_style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Oswald&display=swap" rel="stylesheet">
+</head>
 
-      <section class="guide-section">
-        <h2>Tools &amp; Materials</h2>
-        <ul class="guide-list">
-          ${tools.map(t => `<li>${escapeHtml(t)}</li>`).join("")}
-        </ul>
-      </section>
+<body>
+  <main class="guide-page">
+    <header class="guide-hero">
+      <h1>${title}</h1>
+      <p class="guide-subtitle">Difficulty: ${difficulty} • Time: ${time}</p>
+    </header>
 
-      <section class="guide-section">
-        <h2>Step‑by‑Step Instructions</h2>
-        <ol class="guide-steps">
-          ${steps.map(s => `<li>${escapeHtml(s)}</li>`).join("")}
-        </ol>
-      </section>
+    <section class="guide-section">
+      <h2>Tools & Materials</h2>
+      <ul class="guide-list">
+        ${ai.tools.map(t => `<li>${escapeHtml(t)}</li>`).join("")}
+      </ul>
+    </section>
 
-      <section class="guide-section">
-        <h2>Safety Notes</h2>
-        <ul class="guide-list">
-          ${safety.map(s => `<li>${escapeHtml(s)}</li>`).join("")}
-        </ul>
-      </section>
-    </main>
-  </body>
-  </html>
-  `;
+    <section class="guide-section">
+      <h2>Steps</h2>
+      <ol class="guide-steps">
+        ${ai.steps.map(s => `<li>${escapeHtml(s)}</li>`).join("")}
+      </ol>
+    </section>
+
+    <section class="guide-section">
+      <h2>Safety Notes</h2>
+      <ul class="guide-list">
+        ${ai.safety.map(s => `<li>${escapeHtml(s)}</li>`).join("")}
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
+`;
 }
 
+/* ============================================================
+   BUILD CARD FOR EXISTING GUIDE
+============================================================ */
+function buildCardFromExisting(q, slug) {
+  return {
+    name: toTitleCase(q),
+    category: detectCategory(q),
+    url: `/guides/${slug}.html`,
+    desc: `A complete step-by-step guide for ${escapeText(q)}.`,
+    img: "/img/default-guide.jpg"
+  };
+}
+
+/* ============================================================
+   HELPERS
+============================================================ */
 function detectCategory(query) {
   const q = query.toLowerCase();
   if (q.includes("floor")) return "Flooring";
