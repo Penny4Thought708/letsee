@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import express from "express";
+import { generateGuideAI } from "../ai/generateGuideAI.js";
 
 const router = express.Router();
 
@@ -18,7 +19,9 @@ router.get("/", async (req, res, next) => {
     }
 
     // Generate guide content
-    const guide = generateGuideFromQuery(q);
+  const ai = await generateGuideAI(q);
+const guide = generateGuideHTML(ai);
+
 
     // Save guide HTML
     fs.writeFileSync(guidePath, guide, "utf8");
