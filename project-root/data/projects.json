@@ -4,35 +4,35 @@
     "category": "Bathroom",
     "url": "/guides/fix-a-leaky-faucet.html",
     "desc": "A complete step-by-step guide for fixing a leaky faucet.",
-    "img": "/img/default-guide.jpg"
+    "img": "./img/default-guide.jpg"
   },
   {
     "name": "Install a Light Fixture",
     "category": "Lighting",
     "url": "/guides/install-a-light-fixture.html",
     "desc": "Learn how to safely replace or install a ceiling light fixture.",
-    "img": "/img/default-guide.jpg"
+    "img": "./img/default-guide.jpg"
   },
   {
     "name": "Paint a Bedroom",
     "category": "Painting",
     "url": "/guides/paint-a-bedroom.html",
     "desc": "A beginner-friendly guide to painting interior walls cleanly and efficiently.",
-    "img": "/img/default-guide.jpg"
+    "img": "./img/default-guide.jpg"
   },
   {
     "name": "Build a Raised Garden Bed",
     "category": "Outdoor",
     "url": "/guides/build-a-raised-garden-bed.html",
     "desc": "A simple woodworking project perfect for beginners.",
-    "img": "/img/default-guide.jpg"
+    "img": "./img/default-guide.jpg"
   },
   {
     "name": "Install Vinyl Plank Flooring",
     "category": "Flooring",
     "url": "/guides/install-vinyl-plank-flooring.html",
     "desc": "Step-by-step instructions for installing modern vinyl plank flooring.",
-    "img": "/img/default-guide.jpg"
+    "img": "./img/default-guide.jpg"
   }
 ]
 
