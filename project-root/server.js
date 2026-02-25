@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 
 import generateGuide from "./api/generate-guide.js";
-import getGuide from "./api/get-guide.js";
+
 import search from "./api/search.js";
 import admin from "./api/admin.js";
 
@@ -45,7 +45,7 @@ app.use(express.static("public"));
    ROUTES
 ============================================================ */
 app.use("/api/generate-guide", generateGuide);
-app.use("/api/guide", getGuide);
+
 app.use("/api/search", search);
 app.use("/api/admin", admin);
 
