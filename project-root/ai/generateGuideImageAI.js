@@ -1,3 +1,4 @@
+// project-root/ai/generateGuideImageAI.js
 import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
@@ -20,13 +21,15 @@ export async function generateGuideImageAI(query, slug) {
     const imageBase64 = response.data[0].b64_json;
     const buffer = Buffer.from(imageBase64, "base64");
 
-    const outputDir = path.join("frontend", "img", "generated");
+    // SAVE TO BACKEND, NOT GITHUB PAGES
+    const outputDir = path.join("public", "generated");
     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
     const filePath = path.join(outputDir, `${slug}.png`);
     fs.writeFileSync(filePath, buffer);
 
-    return `/frontend/img/generated/${slug}.png`;
+    // URL served by backend
+    return `/generated/${slug}.png`;
 
   } catch (err) {
     console.error("[AI IMAGE ERROR]", err);
