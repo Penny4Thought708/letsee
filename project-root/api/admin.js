@@ -1,3 +1,4 @@
+// project-root/api/admin.js
 import fs from "fs";
 import path from "path";
 import express from "express";
@@ -5,39 +6,86 @@ import express from "express";
 const router = express.Router();
 const projectsPath = path.join("data", "projects.json");
 
-// GET all guides
+/* ============================================================
+   SAFE FILE READ
+============================================================ */
+function loadProjects() {
+  try {
+    if (!fs.existsSync(projectsPath)) return [];
+    const raw = fs.readFileSync(projectsPath, "utf8") || "[]";
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error("[ADMIN] Failed to read projects.json:", err);
+    return [];
+  }
+}
+
+/* ============================================================
+   SAFE FILE WRITE
+============================================================ */
+function saveProjects(projects) {
+  try {
+    fs.writeFileSync(projectsPath, JSON.stringify(projects, null, 2), "utf8");
+    return true;
+  } catch (err) {
+    console.error("[ADMIN] Failed to write projects.json:", err);
+    return false;
+  }
+}
+
+/* ============================================================
+   GET ALL GUIDES
+============================================================ */
 router.get("/guides", (req, res) => {
-  const projects = JSON.parse(fs.readFileSync(projectsPath, "utf8"));
+  const projects = loadProjects();
   res.json(projects);
 });
 
-// CREATE guide (SPA mode — no URL)
+/* ============================================================
+   CREATE GUIDE (SPA MODE — NO URL)
+============================================================ */
 router.post("/guide", (req, res) => {
   const { name, category, desc, img } = req.body;
-  const projects = JSON.parse(fs.readFileSync(projectsPath, "utf8"));
 
-  projects.push({
-    name,
-    category,
-    url: null,   // IMPORTANT: SPA mode
-    desc,
-    img
-  });
+  if (!name || !category) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
 
-  fs.writeFileSync(projectsPath, JSON.stringify(projects, null, 2));
-  res.json({ success: true });
+  const projects = loadProjects();
+
+  const newGuide = {
+    name: name.trim(),
+    category: category.trim(),
+    url: null, // SPA mode
+    desc: desc?.trim() || "",
+    img: img || "/img/default-guide.jpg"
+  };
+
+  projects.push(newGuide);
+
+  if (!saveProjects(projects)) {
+    return res.status(500).json({ error: "Failed to save guide" });
+  }
+
+  res.json({ success: true, guide: newGuide });
 });
 
-// DELETE guide (SPA mode — delete by name)
+/* ============================================================
+   DELETE GUIDE (SPA MODE — DELETE BY NAME)
+============================================================ */
 router.delete("/guide/:name", (req, res) => {
-  const name = req.params.name.toLowerCase();
-  const projects = JSON.parse(fs.readFileSync(projectsPath, "utf8"));
+  const name = req.params.name?.trim().toLowerCase();
+  if (!name) {
+    return res.status(400).json({ error: "Missing guide name" });
+  }
 
-  const filtered = projects.filter(
-    p => p.name.toLowerCase() !== name
-  );
+  const projects = loadProjects();
+  const filtered = projects.filter(p => p.name.toLowerCase() !== name);
 
-  fs.writeFileSync(projectsPath, JSON.stringify(filtered, null, 2));
+  if (!saveProjects(filtered)) {
+    return res.status(500).json({ error: "Failed to delete guide" });
+  }
+
   res.json({ success: true });
 });
 
