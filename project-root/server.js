@@ -4,12 +4,8 @@ import fs from "fs";
 import path from "path";
 
 import generateGuide from "./api/generate-guide.js";
-
 import search from "./api/search.js";
 import admin from "./api/admin.js";
-
-// REMOVE upload import if the file does not exist
-// import upload from "./api/upload.js";
 
 const app = express();
 
@@ -18,21 +14,26 @@ const app = express();
 ============================================================ */
 app.use(
   cors({
-    origin: "https://penny4thought708.github.io", // your frontend
+    origin: "https://penny4thought708.github.io",
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"]
   })
 );
 
 /* ============================================================
-   DIRECTORY SAFETY
+   ENSURE REQUIRED DIRECTORIES EXIST
 ============================================================ */
-fs.mkdirSync(path.join("public", "guides"), { recursive: true });
-fs.mkdirSync("data", { recursive: true });
-fs.mkdirSync(path.join("public", "generated"), { recursive: true }); // ⭐ ADD THIS
+const PUBLIC_DIR = path.join("public");
+const GENERATED_DIR = path.join(PUBLIC_DIR, "generated");
+const GUIDES_DIR = path.join(PUBLIC_DIR, "guides");
+const DATA_DIR = path.join("data");
 
+fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+fs.mkdirSync(GENERATED_DIR, { recursive: true });   // ⭐ REQUIRED for AI images
+fs.mkdirSync(GUIDES_DIR, { recursive: true });
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const projectsPath = path.join("data", "projects.json");
+const projectsPath = path.join(DATA_DIR, "projects.json");
 if (!fs.existsSync(projectsPath)) {
   fs.writeFileSync(projectsPath, "[]", "utf8");
 }
@@ -41,25 +42,25 @@ if (!fs.existsSync(projectsPath)) {
    MIDDLEWARE
 ============================================================ */
 app.use(express.json());
-app.use(express.static("public"));
+
+// Serve /public as root
+app.use(express.static(PUBLIC_DIR));
+
+// Serve /generated explicitly (AI images)
+app.use("/generated", express.static(GENERATED_DIR));
 
 /* ============================================================
    ROUTES
 ============================================================ */
 app.use("/api/generate-guide", generateGuide);
-
 app.use("/api/search", search);
 app.use("/api/admin", admin);
-app.use("/generated", express.static("public/generated"));
-
-// REMOVE upload route if file does not exist
-// app.use("/api/upload", upload);
 
 /* ============================================================
    ERROR HANDLER
 ============================================================ */
 app.use((err, req, res, next) => {
-  console.error(err);
+  console.error("SERVER ERROR:", err);
   if (res.headersSent) return next(err);
   res.status(500).json({ error: "Server error" });
 });
@@ -68,4 +69,3 @@ app.use((err, req, res, next) => {
    START SERVER
 ============================================================ */
 app.listen(3000, () => console.log("Server running on port 3000"));
-
