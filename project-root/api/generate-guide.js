@@ -98,7 +98,7 @@ router.get("/", async (req, res, next) => {
       category: detectCategory(q),
       url: null,
       desc: ai.steps?.[0] || `A complete step-by-step guide for ${escapeText(q)}.`,
-      img: "/img/default-guide.jpg"
+      img: "./img/default-guide.jpg"
     };
 
     // 3) Save card to search index (best-effort)
