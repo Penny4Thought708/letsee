@@ -23,8 +23,8 @@ app.use(
 /* ============================================================
    ENSURE REQUIRED DIRECTORIES EXIST
 ============================================================ */
-const PUBLIC_DIR = path.join("public");
-const GENERATED_DIR = path.join(PUBLIC_DIR, "generated");
+const PUBLIC_DIR = path.join(process.cwd(), "public");
+const GENERATED_DIR = path.join(process.cwd(), "public", "generated");
 const GUIDES_DIR = path.join(PUBLIC_DIR, "guides");
 const DATA_DIR = path.join("data");
 
