@@ -37,6 +37,7 @@ export async function generateGuideImageAI(query, slug) {
 
     // ⭐ Return absolute URL for GitHub Pages frontend
     return `https://letsee-1.onrender.com/generated/${slug}.png`;
+console.log("WROTE FILE:", filePath, fs.existsSync(filePath));
 
   } catch (err) {
     console.error("[AI IMAGE ERROR]", err);
