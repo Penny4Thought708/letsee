@@ -16,7 +16,7 @@ export async function generateGuideAI(query) {
   `;
 
   const response = await client.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4o",   // ⭐ FIXED MODEL NAME
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" }
   });
