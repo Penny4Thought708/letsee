@@ -32,7 +32,7 @@ router.get("/", (req, res, next) => {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.max(parseInt(req.query.limit) || 10, 1);
 
-    const projectsPath = path.join("data", "projects.json");
+    const projectsPath = path.join(process.cwd(), "data", "projects.json");
 
     /* ============================================================
        LOAD PROJECTS SAFELY
@@ -52,15 +52,15 @@ router.get("/", (req, res, next) => {
        NO QUERY → RETURN PAGINATED FULL LIST
     ============================================================ */
     if (!q) {
-      const start = (page - 1) * limit;
-      const end = start + limit;
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
 
       return res.json({
         page,
         limit,
         total: projects.length,
         totalPages: Math.ceil(projects.length / limit),
-        results: projects.slice(start, end).map(stripURL)
+        results: projects.slice(startIndex, endIndex).map(stripURL)
       });
     }
 
@@ -89,9 +89,9 @@ router.get("/", (req, res, next) => {
     /* ============================================================
        PAGINATION
     ============================================================ */
-    const start = (page - 1) * limit;
-    const end = start + limit;
-    const paginated = ranked.slice(start, end).map(stripURL);
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginated = ranked.slice(startIndex, endIndex).map(stripURL);
 
     res.json({
       page,
@@ -113,8 +113,9 @@ router.get("/", (req, res, next) => {
 function stripURL(project) {
   return {
     ...project,
-    url: null // SPA mode: prevent navigation
+    url: "" // SPA mode: prevent navigation, must be string for validator
   };
 }
 
 export default router;
+
