@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import express from "express";
 import { generateGuideAI } from "../ai/generateGuideAI.js";
+import { generateGuideImageAI } from "../ai/generateGuideImageAI.js";
 
 const router = express.Router();
 
@@ -91,15 +92,17 @@ router.get("/", async (req, res, next) => {
 
     // 1) Generate structured guide from AI (with internal caching + validation)
     const ai = await generateGuideAI(q);
+    const imageUrl = await generateGuideImageAI(q, slug);
 
     // 2) Build card object (SPA mode)
-    const card = {
-      name: ai.title,
-      category: detectCategory(q),
-      url: null,
-      desc: ai.steps?.[0] || `A complete step-by-step guide for ${escapeText(q)}.`,
-      img: "./img/default-guide.jpg"
-    };
+      const card = {
+        name: ai.title,
+        category: detectCategory(q),
+        url: null,
+        desc: ai.steps?.[0] || `A complete step-by-step guide for ${escapeText(q)}.`,
+        img: imageUrl
+      };
+
 
     // 3) Save card to search index (best-effort)
     try {
