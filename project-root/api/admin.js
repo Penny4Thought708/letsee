@@ -7,6 +7,18 @@ const router = express.Router();
 const projectsPath = path.join("data", "projects.json");
 
 /* ============================================================
+   VALIDATOR
+============================================================ */
+function isValidProject(p) {
+  return (
+    typeof p.name === "string" &&
+    typeof p.category === "string" &&
+    typeof p.desc === "string" &&
+    typeof p.img === "string"
+  );
+}
+
+/* ============================================================
    SAFE FILE READ
 ============================================================ */
 function loadProjects() {
@@ -14,8 +26,7 @@ function loadProjects() {
     if (!fs.existsSync(projectsPath)) return [];
     const raw = fs.readFileSync(projectsPath, "utf8") || "[]";
     return JSON.parse(raw);
-  } catch (err) {
-    console.error("[ADMIN] Failed to read projects.json:", err);
+  } catch {
     return [];
   }
 }
@@ -27,8 +38,7 @@ function saveProjects(projects) {
   try {
     fs.writeFileSync(projectsPath, JSON.stringify(projects, null, 2), "utf8");
     return true;
-  } catch (err) {
-    console.error("[ADMIN] Failed to write projects.json:", err);
+  } catch {
     return false;
   }
 }
@@ -37,12 +47,11 @@ function saveProjects(projects) {
    GET ALL GUIDES
 ============================================================ */
 router.get("/guides", (req, res) => {
-  const projects = loadProjects();
-  res.json(projects);
+  res.json(loadProjects());
 });
 
 /* ============================================================
-   CREATE GUIDE (SPA MODE — NO URL)
+   CREATE GUIDE
 ============================================================ */
 router.post("/guide", (req, res) => {
   const { name, category, desc, img } = req.body;
@@ -51,16 +60,23 @@ router.post("/guide", (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  const projects = loadProjects();
-
   const newGuide = {
     name: name.trim(),
     category: category.trim(),
-    url: null, // SPA mode
+    url: null,
     desc: desc?.trim() || "",
     img: img || "/img/default-guide.jpg"
   };
 
+  /* ============================================================
+     VALIDATE BEFORE SAVING
+  ============================================================ */
+  if (!isValidProject(newGuide)) {
+    console.error("[ADMIN] Invalid project structure:", newGuide);
+    return res.status(400).json({ error: "Invalid project structure" });
+  }
+
+  const projects = loadProjects();
   projects.push(newGuide);
 
   if (!saveProjects(projects)) {
@@ -71,7 +87,7 @@ router.post("/guide", (req, res) => {
 });
 
 /* ============================================================
-   DELETE GUIDE (SPA MODE — DELETE BY NAME)
+   DELETE GUIDE
 ============================================================ */
 router.delete("/guide/:name", (req, res) => {
   const name = req.params.name?.trim().toLowerCase();
