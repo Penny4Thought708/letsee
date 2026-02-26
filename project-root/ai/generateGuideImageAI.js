@@ -15,24 +15,29 @@ export async function generateGuideImageAI(query, slug) {
     const response = await client.images.generate({
       model: "gpt-image-1",
       prompt,
-      size: "1024x1024"
+      size: "1024x1024",
+      response_format: "b64_json"   // ⭐ REQUIRED
     });
 
     const imageBase64 = response.data[0].b64_json;
+
+    if (!imageBase64) {
+      console.error("[AI IMAGE ERROR] No b64_json returned");
+      return "/frontend/img/default-guide.jpg";
+    }
+
     const buffer = Buffer.from(imageBase64, "base64");
 
-    // SAVE TO BACKEND, NOT GITHUB PAGES
     const outputDir = path.join("public", "generated");
     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
     const filePath = path.join(outputDir, `${slug}.png`);
     fs.writeFileSync(filePath, buffer);
 
-    // URL served by backend
     return `/generated/${slug}.png`;
 
   } catch (err) {
     console.error("[AI IMAGE ERROR]", err);
-    return "/frontend/img/default-guide.jpg"; // fallback
+    return "/frontend/img/default-guide.jpg";
   }
 }
