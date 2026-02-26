@@ -34,7 +34,7 @@ export async function generateGuideImageAI(query, slug) {
     const filePath = path.join(outputDir, `${slug}.png`);
     fs.writeFileSync(filePath, buffer);
 
-    return `/generated/${slug}.png`;
+    return `https://letsee-1.onrender.com/generated/${slug}.png`;
 
   } catch (err) {
     console.error("[AI IMAGE ERROR]", err);
