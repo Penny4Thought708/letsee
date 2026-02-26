@@ -16,7 +16,7 @@ export async function generateGuideImageAI(query, slug) {
       model: "gpt-image-1",
       prompt,
       size: "1024x1024",
-      response_format: "b64_json"   // ⭐ REQUIRED
+      response_format: "b64_json"
     });
 
     const imageBase64 = response.data[0].b64_json;
@@ -28,12 +28,14 @@ export async function generateGuideImageAI(query, slug) {
 
     const buffer = Buffer.from(imageBase64, "base64");
 
-    const outputDir = path.join("public", "generated");
+    // ⭐ FIXED: absolute path
+    const outputDir = path.join(process.cwd(), "public", "generated");
     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
     const filePath = path.join(outputDir, `${slug}.png`);
     fs.writeFileSync(filePath, buffer);
 
+    // ⭐ Return absolute URL for GitHub Pages frontend
     return `https://letsee-1.onrender.com/generated/${slug}.png`;
 
   } catch (err) {
