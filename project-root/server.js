@@ -29,6 +29,8 @@ app.use(
 ============================================================ */
 fs.mkdirSync(path.join("public", "guides"), { recursive: true });
 fs.mkdirSync("data", { recursive: true });
+fs.mkdirSync(path.join("public", "generated"), { recursive: true }); // ⭐ ADD THIS
+
 
 const projectsPath = path.join("data", "projects.json");
 if (!fs.existsSync(projectsPath)) {
