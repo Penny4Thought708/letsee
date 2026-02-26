@@ -11,8 +11,8 @@ const router = express.Router();
    SIMPLE IN-MEMORY RATE LIMIT
 ============================================================ */
 const rateBucket = new Map();
-const RATE_WINDOW_MS = 60 * 1000; // 1 minute
-const RATE_MAX_REQUESTS = 10;     // per IP+query per window
+const RATE_WINDOW_MS = 60 * 1000;
+const RATE_MAX_REQUESTS = 10;
 
 function rateKey(ip, q) {
   return `${ip}|${q}`;
@@ -38,6 +38,18 @@ function isRateLimited(ip, q) {
 }
 
 /* ============================================================
+   VALIDATOR
+============================================================ */
+function isValidProject(p) {
+  return (
+    typeof p.name === "string" &&
+    typeof p.category === "string" &&
+    typeof p.desc === "string" &&
+    typeof p.img === "string"
+  );
+}
+
+/* ============================================================
    MAIN ROUTE
 ============================================================ */
 router.get("/", async (req, res) => {
@@ -46,23 +58,16 @@ router.get("/", async (req, res) => {
 
   try {
     if (!q) {
-      console.warn("[GUIDE] Missing query");
       return res.status(400).json({ error: "Missing query" });
     }
 
     const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
     if (isRateLimited(ip, q.toLowerCase())) {
-      console.warn(`[GUIDE] Rate limited: ip=${ip}, q="${q}"`);
       return res.status(429).json({ error: "Too many requests. Please try again later." });
     }
 
-    console.log(`[GUIDE] Request: ip=${ip}, q="${q}"`);
-
     const slug = slugify(q);
 
-    /* ============================================================
-       LOAD SEARCH INDEX
-    ============================================================ */
     const projectsPath = path.join("data", "projects.json");
     let projects = [];
 
@@ -71,14 +76,10 @@ router.get("/", async (req, res) => {
         const raw = fs.readFileSync(projectsPath, "utf8") || "[]";
         projects = JSON.parse(raw);
       }
-    } catch (fileErr) {
-      console.error("[GUIDE] Failed to read projects.json:", fileErr);
+    } catch {
       projects = [];
     }
 
-    /* ============================================================
-       CHECK IF GUIDE ALREADY EXISTS
-    ============================================================ */
     const existing = projects.find(
       p =>
         p.name?.toLowerCase() === q.toLowerCase() ||
@@ -86,7 +87,6 @@ router.get("/", async (req, res) => {
     );
 
     if (existing) {
-      console.log(`[GUIDE] Existing guide found for "${q}"`);
       return res.json({
         existed: true,
         guide: null,
@@ -94,37 +94,32 @@ router.get("/", async (req, res) => {
       });
     }
 
-    /* ============================================================
-       GENERATE GUIDE + IMAGE
-    ============================================================ */
     const ai = await generateGuideAI(q);
     const imageUrl = await generateGuideImageAI(q, slug);
 
-    /* ============================================================
-       BUILD CARD OBJECT
-    ============================================================ */
     const card = {
       name: ai.title,
       category: detectCategory(q),
-      url: null, // SPA mode
+      url: null,
       desc: ai.steps?.[0] || `A complete step-by-step guide for ${escapeText(q)}.`,
       img: imageUrl
     };
 
     /* ============================================================
-       SAVE TO SEARCH INDEX
+       VALIDATE BEFORE SAVING
     ============================================================ */
+    if (!isValidProject(card)) {
+      console.error("[PROJECT] Invalid project structure:", card);
+      return res.status(500).json({ error: "Invalid project structure" });
+    }
+
     try {
       projects.push(card);
       fs.writeFileSync(projectsPath, JSON.stringify(projects, null, 2), "utf8");
-      console.log(`[GUIDE] Saved new guide card for "${q}"`);
     } catch (writeErr) {
       console.error("[GUIDE] Failed to write projects.json:", writeErr);
     }
 
-    /* ============================================================
-       RETURN FULL GUIDE + CARD
-    ============================================================ */
     res.json({
       existed: false,
       guide: ai,
