@@ -45,7 +45,8 @@ function isValidProject(p) {
     typeof p.name === "string" &&
     typeof p.category === "string" &&
     typeof p.desc === "string" &&
-    typeof p.img === "string"
+    typeof p.img === "string" &&
+    typeof p.url === "string"
   );
 }
 
@@ -101,14 +102,11 @@ router.get("/", async (req, res) => {
     const card = {
       name: ai.title,
       category: detectCategory(q),
-      url: null,
+      url: "", // ⭐ REQUIRED for validator
       desc: ai.steps?.[0] || `A complete step-by-step guide for ${escapeText(q)}.`,
       img: imageUrl
     };
 
-    /* ============================================================
-       VALIDATE BEFORE SAVING
-    ============================================================ */
     if (!isValidProject(card)) {
       console.error("[PROJECT] Invalid project structure:", card);
       return res.status(500).json({ error: "Invalid project structure" });
