@@ -1,4 +1,4 @@
-// project-root/api/generate-generate.js
+// project-root/api/generate-guide.js
 import fs from "fs";
 import path from "path";
 import express from "express";
@@ -9,7 +9,6 @@ const router = express.Router();
 
 /* ============================================================
    SIMPLE IN-MEMORY RATE LIMIT
-   key: ip|query → { count, firstTs }
 ============================================================ */
 const rateBucket = new Map();
 const RATE_WINDOW_MS = 60 * 1000; // 1 minute
@@ -30,21 +29,18 @@ function isRateLimited(ip, q) {
   }
 
   if (now - entry.firstTs > RATE_WINDOW_MS) {
-    // reset window
     rateBucket.set(key, { count: 1, firstTs: now });
     return false;
   }
 
   entry.count += 1;
-  if (entry.count > RATE_MAX_REQUESTS) return true;
-
-  return false;
+  return entry.count > RATE_MAX_REQUESTS;
 }
 
 /* ============================================================
-   ROUTE
+   MAIN ROUTE
 ============================================================ */
-router.get("/", async (req, res, next) => {
+router.get("/", async (req, res) => {
   const rawQ = req.query.q;
   const q = rawQ?.trim();
 
@@ -64,7 +60,9 @@ router.get("/", async (req, res, next) => {
 
     const slug = slugify(q);
 
-    // Load search index
+    /* ============================================================
+       LOAD SEARCH INDEX
+    ============================================================ */
     const projectsPath = path.join("data", "projects.json");
     let projects = [];
 
@@ -78,8 +76,14 @@ router.get("/", async (req, res, next) => {
       projects = [];
     }
 
-    // If guide already exists in index → return card + no AI call
-    const existing = projects.find(p => p.url === `/guides/${slug}` || p.name?.toLowerCase() === q.toLowerCase());
+    /* ============================================================
+       CHECK IF GUIDE ALREADY EXISTS
+    ============================================================ */
+    const existing = projects.find(
+      p =>
+        p.name?.toLowerCase() === q.toLowerCase() ||
+        p.url === `/guides/${slug}`
+    );
 
     if (existing) {
       console.log(`[GUIDE] Existing guide found for "${q}"`);
@@ -90,31 +94,37 @@ router.get("/", async (req, res, next) => {
       });
     }
 
-    // 1) Generate structured guide from AI (with internal caching + validation)
+    /* ============================================================
+       GENERATE GUIDE + IMAGE
+    ============================================================ */
     const ai = await generateGuideAI(q);
     const imageUrl = await generateGuideImageAI(q, slug);
 
-    // 2) Build card object (SPA mode)
-      const card = {
-        name: ai.title,
-        category: detectCategory(q),
-        url: null,
-        desc: ai.steps?.[0] || `A complete step-by-step guide for ${escapeText(q)}.`,
-        img: imageUrl
-      };
+    /* ============================================================
+       BUILD CARD OBJECT
+    ============================================================ */
+    const card = {
+      name: ai.title,
+      category: detectCategory(q),
+      url: null, // SPA mode
+      desc: ai.steps?.[0] || `A complete step-by-step guide for ${escapeText(q)}.`,
+      img: imageUrl
+    };
 
-
-    // 3) Save card to search index (best-effort)
+    /* ============================================================
+       SAVE TO SEARCH INDEX
+    ============================================================ */
     try {
       projects.push(card);
       fs.writeFileSync(projectsPath, JSON.stringify(projects, null, 2), "utf8");
       console.log(`[GUIDE] Saved new guide card for "${q}"`);
     } catch (writeErr) {
       console.error("[GUIDE] Failed to write projects.json:", writeErr);
-      // Do not fail the request just because of write error
     }
 
-    // 4) Return JSON for inline rendering
+    /* ============================================================
+       RETURN FULL GUIDE + CARD
+    ============================================================ */
     res.json({
       existed: false,
       guide: ai,
@@ -123,7 +133,6 @@ router.get("/", async (req, res, next) => {
 
   } catch (err) {
     console.error("[GUIDE] GENERATION ERROR:", err);
-    // Don’t leak internal error details to client
     res.status(500).json({ error: "Guide generation failed" });
   }
 });
