@@ -4,18 +4,42 @@ import path from "path";
 import express from "express";
 
 const router = express.Router();
-const projectsPath = path.join("data", "projects.json");
+
+// Absolute path for consistency across backend
+const projectsPath = path.join(process.cwd(), "data", "projects.json");
 
 /* ============================================================
-   VALIDATOR
+   HELPERS
 ============================================================ */
+function slugify(str = "") {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeProject(p) {
+  const name = (p.name || "").trim();
+  const slug = slugify(name);
+
+  return {
+    name,
+    category: (p.category || "General").trim(),
+    desc: (p.desc || "").trim(),
+    img: p.img || "/img/default-guide.jpg",
+    url: `/guides/${slug}`, // SPA mode still works; frontend can ignore
+    slug
+  };
+}
+
 function isValidProject(p) {
   return (
     typeof p.name === "string" &&
     typeof p.category === "string" &&
     typeof p.desc === "string" &&
     typeof p.img === "string" &&
-    typeof p.url === "string"
+    typeof p.url === "string" &&
+    typeof p.slug === "string"
   );
 }
 
@@ -61,13 +85,12 @@ router.post("/guide", (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  const newGuide = {
-    name: name.trim(),
-    category: category.trim(),
-    url: "", // ⭐ REQUIRED for validator
-    desc: desc?.trim() || "",
-    img: img || "/img/default-guide.jpg"
-  };
+  const newGuide = normalizeProject({
+    name,
+    category,
+    desc,
+    img
+  });
 
   if (!isValidProject(newGuide)) {
     console.error("[ADMIN] Invalid project structure:", newGuide);
@@ -104,4 +127,5 @@ router.delete("/guide/:name", (req, res) => {
 });
 
 export default router;
+
 
