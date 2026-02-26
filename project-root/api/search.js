@@ -1,32 +1,56 @@
+// project-root/api/search.js
 import fs from "fs";
 import path from "path";
 import express from "express";
 
 const router = express.Router();
 
-// --- Search Scoring Function ---
+/* ============================================================
+   SAFE SCORING FUNCTION
+============================================================ */
 function scoreProject(project, q) {
   const query = q.toLowerCase();
   let score = 0;
 
-  if (project.name.toLowerCase().includes(query)) score += 5;
-  if (project.category.toLowerCase().includes(query)) score += 3;
-  if (project.desc.toLowerCase().includes(query)) score += 1;
+  const name = (project.name || "").toLowerCase();
+  const category = (project.category || "").toLowerCase();
+  const desc = (project.desc || "").toLowerCase();
+
+  if (name.includes(query)) score += 5;
+  if (category.includes(query)) score += 3;
+  if (desc.includes(query)) score += 1;
 
   return score;
 }
 
+/* ============================================================
+   MAIN SEARCH ROUTE
+============================================================ */
 router.get("/", (req, res, next) => {
   try {
     const q = req.query.q?.trim().toLowerCase() || "";
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.max(parseInt(req.query.limit) || 10, 1);
 
     const projectsPath = path.join("data", "projects.json");
-    const raw = fs.readFileSync(projectsPath, "utf8") || "[]";
-    const projects = JSON.parse(raw);
 
-    // If no query, return paginated full list
+    /* ============================================================
+       LOAD PROJECTS SAFELY
+    ============================================================ */
+    let projects = [];
+    try {
+      if (fs.existsSync(projectsPath)) {
+        const raw = fs.readFileSync(projectsPath, "utf8") || "[]";
+        projects = JSON.parse(raw);
+      }
+    } catch (err) {
+      console.error("[SEARCH] Failed to read projects.json:", err);
+      projects = [];
+    }
+
+    /* ============================================================
+       NO QUERY → RETURN PAGINATED FULL LIST
+    ============================================================ */
     if (!q) {
       const start = (page - 1) * limit;
       const end = start + limit;
@@ -40,11 +64,14 @@ router.get("/", (req, res, next) => {
       });
     }
 
-    // Filter results
+    /* ============================================================
+       FILTER RESULTS
+    ============================================================ */
     const filtered = projects.filter(p => {
       const name = (p.name || "").toLowerCase();
       const desc = (p.desc || "").toLowerCase();
       const category = (p.category || "").toLowerCase();
+
       return (
         name.includes(q) ||
         desc.includes(q) ||
@@ -52,12 +79,16 @@ router.get("/", (req, res, next) => {
       );
     });
 
-    // Rank results
+    /* ============================================================
+       RANK RESULTS
+    ============================================================ */
     const ranked = filtered
       .map(p => ({ ...p, score: scoreProject(p, q) }))
       .sort((a, b) => b.score - a.score);
 
-    // Pagination
+    /* ============================================================
+       PAGINATION
+    ============================================================ */
     const start = (page - 1) * limit;
     const end = start + limit;
     const paginated = ranked.slice(start, end).map(stripURL);
@@ -71,15 +102,18 @@ router.get("/", (req, res, next) => {
     });
 
   } catch (err) {
+    console.error("[SEARCH] ERROR:", err);
     next(err);
   }
 });
 
-// Remove URL so frontend does not navigate away
+/* ============================================================
+   HELPERS
+============================================================ */
 function stripURL(project) {
   return {
     ...project,
-    url: null
+    url: null // SPA mode: prevent navigation
   };
 }
 
