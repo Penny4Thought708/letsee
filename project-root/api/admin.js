@@ -14,7 +14,8 @@ function isValidProject(p) {
     typeof p.name === "string" &&
     typeof p.category === "string" &&
     typeof p.desc === "string" &&
-    typeof p.img === "string"
+    typeof p.img === "string" &&
+    typeof p.url === "string"
   );
 }
 
@@ -63,14 +64,11 @@ router.post("/guide", (req, res) => {
   const newGuide = {
     name: name.trim(),
     category: category.trim(),
-    url: null,
+    url: "", // ⭐ REQUIRED for validator
     desc: desc?.trim() || "",
     img: img || "/img/default-guide.jpg"
   };
 
-  /* ============================================================
-     VALIDATE BEFORE SAVING
-  ============================================================ */
   if (!isValidProject(newGuide)) {
     console.error("[ADMIN] Invalid project structure:", newGuide);
     return res.status(400).json({ error: "Invalid project structure" });
@@ -96,7 +94,7 @@ router.delete("/guide/:name", (req, res) => {
   }
 
   const projects = loadProjects();
-  const filtered = projects.filter(p => p.name.toLowerCase() !== name);
+  const filtered = projects.filter(p => p.name?.toLowerCase() !== name);
 
   if (!saveProjects(filtered)) {
     return res.status(500).json({ error: "Failed to delete guide" });
@@ -106,3 +104,4 @@ router.delete("/guide/:name", (req, res) => {
 });
 
 export default router;
+
