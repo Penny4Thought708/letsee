@@ -49,9 +49,11 @@ router.get("/", async (req, res, next) => {
       card
     });
 
-  } catch (err) {
-    next(err);
-  }
+} catch (err) {
+  console.error("GENERATION ERROR:", err);
+  next(err);
+}
+
 });
 
 /* ============================================================
