@@ -96,6 +96,7 @@ router.get("/", async (req, res) => {
 
     const ai = await generateGuideAI(q);
     const imageUrl = await generateGuideImageAI(q, slug);
+    console.log("[AI IMAGE URL]", imageUrl);
 
     const card = {
       name: ai.title,
