@@ -48,6 +48,7 @@ app.use("/api/generate-guide", generateGuide);
 
 app.use("/api/search", search);
 app.use("/api/admin", admin);
+app.use("/generated", express.static("public/generated"));
 
 // REMOVE upload route if file does not exist
 // app.use("/api/upload", upload);
