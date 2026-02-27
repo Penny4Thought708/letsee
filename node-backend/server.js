@@ -43,6 +43,7 @@ import iceRouter from "./src/routes/webrtc/ice.js";
 // Socket.IO registration
 import registerSockets from "./src/sockets/index.js";
 import profileRouter from "./src/routes/profile/index.js";
+
 // Resolve __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,7 +57,7 @@ const app = express();
 const server = http.createServer(app);
 
 /* -------------------------------------------------------
-   CORS CONFIGURATION
+   CORS CONFIGURATION (FIXED)
 ------------------------------------------------------- */
 const allowedOrigins = [
   "http://localhost",
@@ -67,7 +68,11 @@ const allowedOrigins = [
   "http://127.0.0.1:3001",
   "https://letsee-vv23.onrender.com",
   "https://letsee-backend.onrender.com",
-  "https://penny4thought708.github.io"
+  "https://penny4thought708.github.io",
+
+  // ⭐ Your real domain (added)
+  "https://www.diy-core.com",
+  "https://diy-core.com"
 ];
 
 const corsOptions = {
@@ -179,6 +184,7 @@ app.use("/api/voicemail", voicemailRouter);
 app.use("/api/call-logs", callLogsRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/profile", profileRouter);
+
 /* -------------------------------------------------------
    WEBRTC ICE ROUTE
 ------------------------------------------------------- */
@@ -198,7 +204,7 @@ const io = new Server(server, {
 });
 
 /* -------------------------------------------------------
-   REDIS ADAPTER (Cluster‑Safe WebSockets)
+   REDIS ADAPTER
 ------------------------------------------------------- */
 async function setupRedisAdapter() {
   try {
@@ -260,9 +266,6 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT} (${NODE_ENV})`);
 });
-
-
-
 
 
 
