@@ -57,7 +57,7 @@ const app = express();
 const server = http.createServer(app);
 
 /* -------------------------------------------------------
-   CORS CONFIGURATION (FIXED)
+   CORS CONFIGURATION (IMPROVED)
 ------------------------------------------------------- */
 const allowedOrigins = [
   "http://localhost",
@@ -68,19 +68,24 @@ const allowedOrigins = [
   "http://127.0.0.1:3001",
   "https://letsee-vv23.onrender.com",
   "https://letsee-backend.onrender.com",
-  "https://penny4thought708.github.io",
-
-  // ⭐ Your real domain (added)
-  "https://www.diy-core.com",
-  "https://diy-core.com"
+  "https://penny4thought708.github.io"
 ];
+
+// regex for diy-core.com with/without www
+const originPatterns = [/^https:\/\/(www\.)?diy-core\.com$/];
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  if (originPatterns.some((re) => re.test(origin))) return true;
+  return false;
+};
 
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (isOriginAllowed(origin)) return callback(null, true);
     console.warn("[CORS] Blocked origin:", origin);
-    return callback(null, false);
+    return callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -142,9 +147,9 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: isProd,
+      secure: isProd,        // requires HTTPS in production
       httpOnly: true,
-      sameSite: "none",
+      sameSite: "none",      // needed for cross-site cookies
       maxAge: 1000 * 60 * 60 * 24 * 7
     }
   })
@@ -195,7 +200,11 @@ app.use("/api/webrtc", iceRouter);
 ------------------------------------------------------- */
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin(origin, callback) {
+      if (isOriginAllowed(origin)) return callback(null, true);
+      console.warn("[Socket.IO CORS] Blocked origin:", origin);
+      return callback(new Error("Not allowed by CORS"));
+    },
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -266,8 +275,6 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT} (${NODE_ENV})`);
 });
-
-
 
 
 
