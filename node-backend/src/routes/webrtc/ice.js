@@ -9,6 +9,13 @@ router.get("/get-ice", async (req, res) => {
     const apiKeySid = process.env.TWILIO_API_KEY_SID;
     const apiKeySecret = process.env.TWILIO_API_KEY_SECRET;
 
+    if (!accountSid || !apiKeySid || !apiKeySecret) {
+      console.error("[ICE] Missing Twilio credentials");
+      return res.json({
+        iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }]
+      });
+    }
+
     const auth = Buffer.from(`${apiKeySid}:${apiKeySecret}`).toString("base64");
 
     const response = await fetch(
@@ -17,31 +24,35 @@ router.get("/get-ice", async (req, res) => {
         method: "POST",
         headers: {
           Authorization: `Basic ${auth}`,
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/x-www-form-urlencoded"
         },
+        body: "" // Twilio requires a body, even if empty
       }
     );
 
     const data = await response.json();
 
-    if (!data.ice_servers) {
-      console.error("[ICE] Twilio returned no ICE servers:", data);
+    if (!data.ice_servers || !Array.isArray(data.ice_servers)) {
+      console.error("[ICE] Twilio returned invalid ICE servers:", data);
       return res.json({
-        iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
+        iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }]
       });
     }
 
     console.log("[ICE] Twilio ICE servers returned successfully");
-    return res.json({ iceServers: data.ice_servers });
+
+    return res.json({
+      iceServers: data.ice_servers
+    });
+
   } catch (err) {
     console.error("[ICE] Twilio error:", err);
     return res.json({
-      iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
+      iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }]
     });
   }
 });
 
-export { router };
 export default router;
 
 
