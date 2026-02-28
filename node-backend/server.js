@@ -36,13 +36,13 @@ import messagesRouter from "./src/routes/messages/index.js";
 import voicemailRouter from "./src/routes/voicemail/index.js";
 import callLogsRouter from "./src/routes/callLogs/index.js";
 import usersRouter from "./src/routes/users/search.js";
+import profileRouter from "./src/routes/profile/index.js";
 
 // WebRTC ICE route
 import iceRouter from "./src/routes/webrtc/ice.js";
 
 // Socket.IO registration
 import registerSockets from "./src/sockets/index.js";
-import profileRouter from "./src/routes/profile/index.js";
 
 // Resolve __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -57,7 +57,7 @@ const app = express();
 const server = http.createServer(app);
 
 /* -------------------------------------------------------
-   CORS CONFIGURATION (IMPROVED)
+   CORS CONFIGURATION
 ------------------------------------------------------- */
 const allowedOrigins = [
   "http://localhost",
@@ -78,13 +78,13 @@ const isOriginAllowed = (origin) => {
   if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
   if (originPatterns.some((re) => re.test(origin))) return true;
+  console.warn("[CORS] Blocked origin:", origin);
   return false;
 };
 
 const corsOptions = {
   origin(origin, callback) {
     if (isOriginAllowed(origin)) return callback(null, true);
-    console.warn("[CORS] Blocked origin:", origin);
     return callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
@@ -114,8 +114,8 @@ const authLimiter = rateLimit({
   message: { success: false, error: "Too many requests" }
 });
 
+// ✅ Keep rate limiting on auth only
 app.use("/api/auth", authLimiter);
-app.use("/api/webrtc", authLimiter);
 
 /* -------------------------------------------------------
    CORE MIDDLEWARE
@@ -191,8 +191,9 @@ app.use("/api/users", usersRouter);
 app.use("/api/profile", profileRouter);
 
 /* -------------------------------------------------------
-   WEBRTC ICE ROUTE
+   WEBRTC ICE ROUTE (PUBLIC, NO SESSION REQUIRED)
 ------------------------------------------------------- */
+// ✅ No rate limit, no auth — safe for TURN/STUN discovery
 app.use("/api/webrtc", iceRouter);
 
 /* -------------------------------------------------------
@@ -275,6 +276,7 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT} (${NODE_ENV})`);
 });
+
 
 
 
