@@ -41,7 +41,10 @@ router.get("/get-ice", async (req, res) => {
       });
     }
 
-    const data = await response.json();
+   const data = await response.json();
+   console.log("[ICE] Raw Twilio response:", JSON.stringify(data, null, 2));
+   console.log("[ICE] Parsed ice_servers:", data?.ice_servers);
+
 
     // 3) Validate Twilio response
     let servers = Array.isArray(data?.ice_servers)
