@@ -6,6 +6,8 @@ import fetch from "node-fetch";
 const router = express.Router();
 
 router.get("/get-ice", async (req, res) => {
+  console.log("[ICE] /get-ice hit");
+
   try {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const apiKeySid = process.env.TWILIO_API_KEY_SID;
@@ -30,7 +32,7 @@ router.get("/get-ice", async (req, res) => {
           Authorization: `Basic ${auth}`,
           "Content-Type": "application/x-www-form-urlencoded"
         },
-        body: "" // Twilio requires a body, even if empty
+        body: ""
       }
     );
 
@@ -41,10 +43,10 @@ router.get("/get-ice", async (req, res) => {
       });
     }
 
-   const data = await response.json();
-   console.log("[ICE] Raw Twilio response:", JSON.stringify(data, null, 2));
-   console.log("[ICE] Parsed ice_servers:", data?.ice_servers);
+    const data = await response.json();
 
+    console.log("[ICE] Raw Twilio response:", JSON.stringify(data, null, 2));
+    console.log("[ICE] Parsed ice_servers:", data?.ice_servers);
 
     // 3) Validate Twilio response
     let servers = Array.isArray(data?.ice_servers)
@@ -86,6 +88,7 @@ router.get("/get-ice", async (req, res) => {
 });
 
 export default router;
+
 
 
 
