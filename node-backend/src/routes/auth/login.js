@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 const router = express.Router();
 
 /* -------------------------------------------------------
-   POST /api/auth/login
+   POST /api/auth/login  — SAFE UPGRADED VERSION
 ------------------------------------------------------- */
 router.post("/login", async (req, res) => {
   try {
@@ -16,8 +16,32 @@ router.post("/login", async (req, res) => {
       return res.json({ success: false, error: "Missing credentials" });
     }
 
+    // ⭐ FULL PROFILE SELECT
     const result = await db.query(
-      "SELECT user_id, fullname, email, password, avatar FROM users WHERE email = $1 LIMIT 1",
+      `SELECT
+        user_id,
+        fullname,
+        email,
+        password,
+        bio,
+        website,
+        twitter,
+        instagram,
+        show_online,
+        allow_messages,
+        avatar,
+        banner,
+        theme,
+        username,
+        pronouns,
+        status,
+        location,
+        github,
+        linkedin,
+        youtube
+      FROM users
+      WHERE email = $1
+      LIMIT 1`,
       [email]
     );
 
@@ -38,18 +62,17 @@ router.post("/login", async (req, res) => {
       return res.json({ success: false, error: "Password incorrect" });
     }
 
-    // ⭐ OLD WORKING SESSION
+    // ⭐ REMOVE PASSWORD BEFORE SAVING SESSION
+    delete user.password;
+
+    // ⭐ STORE BOTH user_id AND FULL PROFILE
     req.session.user_id = user.user_id;
+    req.session.user = user;
 
     req.session.save(() => {
       return res.json({
         success: true,
-        user: {
-          user_id: user.user_id,
-          fullname: user.fullname,
-          email: user.email,
-          avatar: user.avatar
-        }
+        profile: user
       });
     });
 
@@ -60,7 +83,7 @@ router.post("/login", async (req, res) => {
 });
 
 /* -------------------------------------------------------
-   GET /api/auth/me
+   GET /api/auth/me — SAFE UPGRADED VERSION
 ------------------------------------------------------- */
 router.get("/me", async (req, res) => {
   try {
@@ -69,7 +92,28 @@ router.get("/me", async (req, res) => {
     }
 
     const result = await db.query(
-      "SELECT user_id, fullname, email, avatar FROM users WHERE user_id = $1",
+      `SELECT
+        user_id,
+        fullname,
+        email,
+        bio,
+        website,
+        twitter,
+        instagram,
+        show_online,
+        allow_messages,
+        avatar,
+        banner,
+        theme,
+        username,
+        pronouns,
+        status,
+        location,
+        github,
+        linkedin,
+        youtube
+      FROM users
+      WHERE user_id = $1`,
       [req.session.user_id]
     );
 
@@ -79,7 +123,7 @@ router.get("/me", async (req, res) => {
 
     return res.json({
       success: true,
-      user: result.rows[0]
+      profile: result.rows[0]
     });
 
   } catch (err) {
@@ -89,3 +133,4 @@ router.get("/me", async (req, res) => {
 });
 
 export default router;
+
