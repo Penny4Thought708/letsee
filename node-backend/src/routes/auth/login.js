@@ -70,32 +70,31 @@ router.get("/me", async (req, res) => {
       return res.json({ success: false });
     }
 
-const result = await db.query(
-  `SELECT
-    user_id,
-    fullname,
-    email,
-    bio,
-    website,
-    twitter,
-    instagram,
-    show_online,
-    allow_messages,
-    avatar,
-    banner,
-    theme,
-    username,
-    pronouns,
-    status,
-    location,
-    github,
-    linkedin,
-    youtube
-  FROM users
-  WHERE user_id = $1`,
-  [req.session.user_id]
-);
-
+    const result = await db.query(
+      `SELECT
+        user_id,
+        fullname,
+        email,
+        bio,
+        website,
+        twitter,
+        instagram,
+        show_online,
+        allow_messages,
+        avatar,
+        banner,
+        theme,
+        username,
+        pronouns,
+        status,
+        location,
+        github,
+        linkedin,
+        youtube
+      FROM users
+      WHERE user_id = $1`,
+      [req.session.user_id]
+    );
 
     if (result.rowCount === 0) {
       return res.json({ success: false });
@@ -103,7 +102,7 @@ const result = await db.query(
 
     return res.json({
       success: true,
-      user: result.rows[0]
+      profile: result.rows[0]
     });
 
   } catch (err) {
