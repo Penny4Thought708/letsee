@@ -16,32 +16,8 @@ router.post("/login", async (req, res) => {
       return res.json({ success: false, error: "Missing credentials" });
     }
 
-    // ⭐ FULL USER RECORD
     const result = await db.query(
-      `SELECT
-        user_id,
-        fullname,
-        email,
-        password,
-        bio,
-        website,
-        twitter,
-        instagram,
-        show_online,
-        allow_messages,
-        avatar,
-        banner,
-        theme,
-        username,
-        pronouns,
-        status,
-        location,
-        github,
-        linkedin,
-        youtube
-      FROM users
-      WHERE email = $1
-      LIMIT 1`,
+      "SELECT user_id, fullname, email, password, avatar FROM users WHERE email = $1 LIMIT 1",
       [email]
     );
 
@@ -62,16 +38,18 @@ router.post("/login", async (req, res) => {
       return res.json({ success: false, error: "Password incorrect" });
     }
 
-    // ---------------------------------------------------
-    // ⭐ SAVE FULL USER IN SESSION
-    // ---------------------------------------------------
+    // ⭐ OLD WORKING SESSION
     req.session.user_id = user.user_id;
-    req.session.user = user; // store full profile
 
     req.session.save(() => {
       return res.json({
         success: true,
-        profile: user
+        user: {
+          user_id: user.user_id,
+          fullname: user.fullname,
+          email: user.email,
+          avatar: user.avatar
+        }
       });
     });
 
@@ -90,30 +68,8 @@ router.get("/me", async (req, res) => {
       return res.json({ success: false });
     }
 
-    // ⭐ ALWAYS RETURN FULL PROFILE
     const result = await db.query(
-      `SELECT
-        user_id,
-        fullname,
-        email,
-        bio,
-        website,
-        twitter,
-        instagram,
-        show_online,
-        allow_messages,
-        avatar,
-        banner,
-        theme,
-        username,
-        pronouns,
-        status,
-        location,
-        github,
-        linkedin,
-        youtube
-      FROM users
-      WHERE user_id = $1`,
+      "SELECT user_id, fullname, email, avatar FROM users WHERE user_id = $1",
       [req.session.user_id]
     );
 
@@ -123,7 +79,7 @@ router.get("/me", async (req, res) => {
 
     return res.json({
       success: true,
-      profile: result.rows[0]
+      user: result.rows[0]
     });
 
   } catch (err) {
