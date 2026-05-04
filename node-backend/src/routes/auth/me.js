@@ -6,48 +6,54 @@ const router = express.Router();
 
 router.get("/me", async (req, res) => {
   try {
+    // Read JWT from cookie or Authorization header
     const token =
       req.cookies.token || req.headers.authorization?.replace("Bearer ", "");
-    if (!token) return res.json({ success: false });
+
+    if (!token) {
+      return res.json({ success: false, error: "Not authenticated" });
+    }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // Fetch ALL profile fields your frontend uses
     const { rows } = await db.query(
-      `SELECT 
-  user_id,
-  fullname,
-  email,
-  bio,
-  website,
-  twitter,
-  instagram,
-  show_online,
-  allow_messages,
-  avatar,
-  banner,
-  theme,
-  username,
-  pronouns,
-  status,
-  location,
-  github,
-  linkedin,
-  youtube
-FROM users
-WHERE user_id = $1;
-`,
+      `SELECT
+        user_id,
+        fullname,
+        email,
+        bio,
+        website,
+        twitter,
+        instagram,
+        show_online,
+        allow_messages,
+        avatar,
+        banner,
+        theme,
+        username,
+        pronouns,
+        status,
+        location,
+        github,
+        linkedin,
+        youtube
+      FROM users
+      WHERE user_id = $1`,
       [decoded.user_id]
     );
 
-    if (!rows[0]) return res.json({ success: false });
+    if (!rows[0]) {
+      return res.json({ success: false, error: "User not found" });
+    }
 
-    // IMPORTANT: must be "profile", not "user"
-    res.json({ success: true, profile: rows[0] });
+    // IMPORTANT: must return "profile", not "user"
+    return res.json({ success: true, profile: rows[0] });
 
   } catch (err) {
-    res.json({ success: false, error: err.message });
+    console.error("GET /me error:", err);
+    return res.json({ success: false, error: err.message });
   }
 });
 
 export default router;
-
