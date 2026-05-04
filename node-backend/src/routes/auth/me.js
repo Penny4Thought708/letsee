@@ -6,7 +6,6 @@ const router = express.Router();
 
 router.get("/me", async (req, res) => {
   try {
-    // Read JWT from cookie or Authorization header
     const token =
       req.cookies.token || req.headers.authorization?.replace("Bearer ", "");
 
@@ -16,7 +15,6 @@ router.get("/me", async (req, res) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Fetch ALL profile fields your frontend uses
     const { rows } = await db.query(
       `SELECT
         user_id,
@@ -47,7 +45,6 @@ router.get("/me", async (req, res) => {
       return res.json({ success: false, error: "User not found" });
     }
 
-    // IMPORTANT: must return "profile", not "user"
     return res.json({ success: true, profile: rows[0] });
 
   } catch (err) {
@@ -57,3 +54,4 @@ router.get("/me", async (req, res) => {
 });
 
 export default router;
+
