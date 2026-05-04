@@ -33,6 +33,7 @@ router.get("/me", async (req, res) => {
 
     if (!rows[0]) return res.json({ success: false });
 
+    // IMPORTANT: must be "profile", not "user"
     res.json({ success: true, profile: rows[0] });
 
   } catch (err) {
