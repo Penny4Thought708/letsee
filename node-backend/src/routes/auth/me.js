@@ -14,20 +14,28 @@ router.get("/me", async (req, res) => {
 
     const { rows } = await db.query(
       `SELECT 
-        user_id,
-        fullname,
-        email,
-        bio,
-        website,
-        twitter,
-        instagram,
-        show_online,
-        allow_messages,
-        avatar,
-        banner,
-        theme
-      FROM users
-      WHERE user_id = $1`,
+  user_id,
+  fullname,
+  email,
+  bio,
+  website,
+  twitter,
+  instagram,
+  show_online,
+  allow_messages,
+  avatar,
+  banner,
+  theme,
+  username,
+  pronouns,
+  status,
+  location,
+  github,
+  linkedin,
+  youtube
+FROM users
+WHERE user_id = $1;
+`,
       [decoded.user_id]
     );
 
