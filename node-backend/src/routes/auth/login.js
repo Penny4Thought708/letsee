@@ -16,8 +16,32 @@ router.post("/login", async (req, res) => {
       return res.json({ success: false, error: "Missing credentials" });
     }
 
+    // ⭐ FULL USER RECORD
     const result = await db.query(
-      "SELECT user_id, fullname, email, password, avatar FROM users WHERE email = $1 LIMIT 1",
+      `SELECT
+        user_id,
+        fullname,
+        email,
+        password,
+        bio,
+        website,
+        twitter,
+        instagram,
+        show_online,
+        allow_messages,
+        avatar,
+        banner,
+        theme,
+        username,
+        pronouns,
+        status,
+        location,
+        github,
+        linkedin,
+        youtube
+      FROM users
+      WHERE email = $1
+      LIMIT 1`,
       [email]
     );
 
@@ -39,19 +63,15 @@ router.post("/login", async (req, res) => {
     }
 
     // ---------------------------------------------------
-    // ⭐ SAVE SESSION — THE CRITICAL PART
+    // ⭐ SAVE FULL USER IN SESSION
     // ---------------------------------------------------
     req.session.user_id = user.user_id;
+    req.session.user = user; // store full profile
 
     req.session.save(() => {
       return res.json({
         success: true,
-        user: {
-          user_id: user.user_id,
-          fullname: user.fullname,
-          email: user.email,
-          avatar: user.avatar
-        }
+        profile: user
       });
     });
 
@@ -70,20 +90,41 @@ router.get("/me", async (req, res) => {
       return res.json({ success: false });
     }
 
-const result = await db.query(
-  "SELECT user_id, fullname, email, avatar FROM users WHERE user_id = $1",
-  [req.session.user_id]
-);
+    // ⭐ ALWAYS RETURN FULL PROFILE
+    const result = await db.query(
+      `SELECT
+        user_id,
+        fullname,
+        email,
+        bio,
+        website,
+        twitter,
+        instagram,
+        show_online,
+        allow_messages,
+        avatar,
+        banner,
+        theme,
+        username,
+        pronouns,
+        status,
+        location,
+        github,
+        linkedin,
+        youtube
+      FROM users
+      WHERE user_id = $1`,
+      [req.session.user_id]
+    );
 
     if (result.rowCount === 0) {
       return res.json({ success: false });
     }
 
-  return res.json({
-  success: true,
-  user: result.rows[0]
-});
-
+    return res.json({
+      success: true,
+      profile: result.rows[0]
+    });
 
   } catch (err) {
     console.error("GET /api/auth/me error:", err);
@@ -92,4 +133,3 @@ const result = await db.query(
 });
 
 export default router;
-
