@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 const router = express.Router();
 
 /* -------------------------------------------------------
-   POST /api/auth/login  — upgraded but safe
+   POST /api/auth/login
 ------------------------------------------------------- */
 router.post("/login", async (req, res) => {
   try {
@@ -16,32 +16,8 @@ router.post("/login", async (req, res) => {
       return res.json({ success: false, error: "Missing credentials" });
     }
 
-    // ⭐ SELECT FULL USER ROW (including password)
     const result = await db.query(
-      `SELECT
-        user_id,
-        fullname,
-        email,
-        password,
-        bio,
-        website,
-        twitter,
-        instagram,
-        show_online,
-        allow_messages,
-        avatar,
-        banner,
-        theme,
-        username,
-        pronouns,
-        status,
-        location,
-        github,
-        linkedin,
-        youtube
-      FROM users
-      WHERE email = $1
-      LIMIT 1`,
+      "SELECT user_id, fullname, email, password, avatar FROM users WHERE email = $1 LIMIT 1",
       [email]
     );
 
@@ -62,18 +38,18 @@ router.post("/login", async (req, res) => {
       return res.json({ success: false, error: "Password incorrect" });
     }
 
-    // ⭐ OLD WORKING SESSION — KEEP IT
+    // ⭐ OLD WORKING SESSION
     req.session.user_id = user.user_id;
-
-    // ⭐ DO NOT STORE FULL USER IN SESSION
-    // ⭐ DO NOT DELETE PASSWORD FROM DB
-    // ⭐ JUST REMOVE PASSWORD FROM RESPONSE
-    delete user.password;
 
     req.session.save(() => {
       return res.json({
         success: true,
-        profile: user   // ⭐ NEW LAYOUT
+        user: {
+          user_id: user.user_id,
+          fullname: user.fullname,
+          email: user.email,
+          avatar: user.avatar
+        }
       });
     });
 
@@ -84,7 +60,7 @@ router.post("/login", async (req, res) => {
 });
 
 /* -------------------------------------------------------
-   GET /api/auth/me  — upgraded to match new layout
+   GET /api/auth/me
 ------------------------------------------------------- */
 router.get("/me", async (req, res) => {
   try {
@@ -93,28 +69,7 @@ router.get("/me", async (req, res) => {
     }
 
     const result = await db.query(
-      `SELECT
-        user_id,
-        fullname,
-        email,
-        bio,
-        website,
-        twitter,
-        instagram,
-        show_online,
-        allow_messages,
-        avatar,
-        banner,
-        theme,
-        username,
-        pronouns,
-        status,
-        location,
-        github,
-        linkedin,
-        youtube
-      FROM users
-      WHERE user_id = $1`,
+      "SELECT user_id, fullname, email, avatar FROM users WHERE user_id = $1",
       [req.session.user_id]
     );
 
@@ -124,7 +79,7 @@ router.get("/me", async (req, res) => {
 
     return res.json({
       success: true,
-      profile: result.rows[0]   // ⭐ NEW LAYOUT
+      user: result.rows[0]
     });
 
   } catch (err) {
