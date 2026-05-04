@@ -17,30 +17,7 @@ router.post("/login", async (req, res) => {
     }
 
     const result = await db.query(
-      `SELECT
-        user_id,
-        fullname,
-        email,
-        password,
-        bio,
-        website,
-        twitter,
-        instagram,
-        show_online,
-        allow_messages,
-        avatar,
-        banner,
-        theme,
-        username,
-        pronouns,
-        status,
-        location,
-        github,
-        linkedin,
-        youtube
-      FROM users
-      WHERE email = $1
-      LIMIT 1`,
+      "SELECT user_id, fullname, email, password, avatar FROM users WHERE email = $1 LIMIT 1",
       [email]
     );
 
@@ -61,7 +38,7 @@ router.post("/login", async (req, res) => {
       return res.json({ success: false, error: "Password incorrect" });
     }
 
-    // ⭐ SAME SESSION BEHAVIOR AS BEFORE
+    // ⭐ OLD WORKING SESSION
     req.session.user_id = user.user_id;
 
     req.session.save(() => {
@@ -71,22 +48,7 @@ router.post("/login", async (req, res) => {
           user_id: user.user_id,
           fullname: user.fullname,
           email: user.email,
-          bio: user.bio,
-          website: user.website,
-          twitter: user.twitter,
-          instagram: user.instagram,
-          show_online: user.show_online,
-          allow_messages: user.allow_messages,
-          avatar: user.avatar,
-          banner: user.banner,
-          theme: user.theme,
-          username: user.username,
-          pronouns: user.pronouns,
-          status: user.status,
-          location: user.location,
-          github: user.github,
-          linkedin: user.linkedin,
-          youtube: user.youtube
+          avatar: user.avatar
         }
       });
     });
@@ -107,28 +69,7 @@ router.get("/me", async (req, res) => {
     }
 
     const result = await db.query(
-      `SELECT
-        user_id,
-        fullname,
-        email,
-        bio,
-        website,
-        twitter,
-        instagram,
-        show_online,
-        allow_messages,
-        avatar,
-        banner,
-        theme,
-        username,
-        pronouns,
-        status,
-        location,
-        github,
-        linkedin,
-        youtube
-      FROM users
-      WHERE user_id = $1`,
+      "SELECT user_id, fullname, email, avatar FROM users WHERE user_id = $1",
       [req.session.user_id]
     );
 
@@ -138,7 +79,7 @@ router.get("/me", async (req, res) => {
 
     return res.json({
       success: true,
-      user: result.rows[0]   // 🔥 same shape as before, just more fields
+      user: result.rows[0]
     });
 
   } catch (err) {
