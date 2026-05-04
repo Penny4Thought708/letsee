@@ -42,17 +42,31 @@ router.post("/login", async (req, res) => {
     req.session.user_id = user.user_id;
 
     req.session.save(() => {
-      return res.json({
+          return res.json({
         success: true,
         user: {
           user_id: user.user_id,
           fullname: user.fullname,
           email: user.email,
-          avatar: user.avatar
+          bio: user.bio,
+          website: user.website,
+          twitter: user.twitter,
+          instagram: user.instagram,
+          show_online: user.show_online,
+          allow_messages: user.allow_messages,
+          avatar: user.avatar,
+          banner: user.banner,
+          theme: user.theme,
+          username: user.username,
+          pronouns: user.pronouns,
+          status: user.status,
+          location: user.location,
+          github: user.github,
+          linkedin: user.linkedin,
+          youtube: user.youtube
         }
       });
     });
-
   } catch (err) {
     console.error("POST /api/auth/login error:", err);
     res.json({ success: false, error: "Server error" });
