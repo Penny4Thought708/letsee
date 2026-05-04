@@ -100,28 +100,54 @@ export async function enhanceAvatar(req, res) {
   }
 }
 
+
 // ----------------------
-// Update Profile (Auto-save + Manual Save)
+// Update Profile (Frontend-Compatible)
 // ----------------------
 export async function updateProfile(req, res) {
   try {
     const userId = req.session.user_id;
 
+    if (!userId) {
+      return res.json({ success: false, error: "Not authenticated" });
+    }
+
+    // Incoming fields from updated-profile.js
     const {
-      fullname,
+      displayName,
       email,
-      bio,
+      about,
       website,
-      twitter,
-      instagram,
-      show_online,
-      allow_messages,
-      avatar,
-      banner,
-      theme
+      social = {},
+      preferences = {}
     } = req.body;
 
-    await db.query(
+    // Map frontend → DB columns
+    const fullname = displayName || null;
+    const bio = about || null;
+    const twitter = social.x || null;
+    const instagram = social.instagram || null;
+    const show_online = preferences.showStatus ?? true;
+    const allow_messages = preferences.allowFriends ?? true;
+    const theme = preferences.theme || "system";
+
+    // Validate email
+    if (!email || !email.trim()) {
+      return res.json({ success: false, error: "Email cannot be empty" });
+    }
+
+    // Check email uniqueness
+    const emailCheck = await db.query(
+      "SELECT user_id FROM users WHERE email = $1 AND user_id != $2",
+      [email, userId]
+    );
+
+    if (emailCheck.rows.length > 0) {
+      return res.json({ success: false, error: "Email already in use" });
+    }
+
+    // Update DB
+    const result = await db.query(
       `UPDATE users SET 
         fullname = $1,
         email = $2,
@@ -131,10 +157,10 @@ export async function updateProfile(req, res) {
         instagram = $6,
         show_online = $7,
         allow_messages = $8,
-        avatar = $9,
-        banner = $10,
-        theme = $11
-      WHERE user_id = $12`,
+        theme = $9
+      WHERE user_id = $10
+      RETURNING user_id, fullname, email, bio, website, twitter, instagram,
+                show_online, allow_messages, avatar, banner, theme`,
       [
         fullname,
         email,
@@ -144,17 +170,29 @@ export async function updateProfile(req, res) {
         instagram,
         show_online,
         allow_messages,
-        avatar,
-        banner,
         theme,
         userId
       ]
     );
 
-    res.json({ success: true });
+    const updated = result.rows[0];
+
+    // Update session
+    req.session.fullname = updated.fullname;
+    req.session.email = updated.email;
+    req.session.bio = updated.bio;
+    req.session.website = updated.website;
+    req.session.twitter = updated.twitter;
+    req.session.instagram = updated.instagram;
+    req.session.show_online = updated.show_online;
+    req.session.allow_messages = updated.allow_messages;
+    req.session.theme = updated.theme;
+
+    return res.json({ success: true, profile: updated });
+
   } catch (err) {
     console.error("Profile update error:", err);
-    res.json({ success: false, error: "Update failed" });
+    return res.json({ success: false, error: "Update failed" });
   }
 }
 
