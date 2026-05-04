@@ -100,10 +100,11 @@ router.get("/me", async (req, res) => {
       return res.json({ success: false });
     }
 
-    return res.json({
-      success: true,
-      profile: result.rows[0]
-    });
+  return res.json({
+  success: true,
+  user: result.rows[0]
+});
+
 
   } catch (err) {
     console.error("GET /api/auth/me error:", err);
