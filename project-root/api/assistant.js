@@ -9,8 +9,8 @@ router.post("/", async (req, res) => {
   try {
     const userMessage = req.body.message;
 
-    // Create a streaming response using the Responses API
-    const response = await client.responses.create({
+    // Create a streaming response using the universal Responses API
+    const response = await client.responses.generate({
       model: "gpt-5.4-mini",
       input: userMessage,
       stream: true
@@ -39,7 +39,7 @@ router.post("/", async (req, res) => {
     res.status(500).json({ reply: "Server error" });
   }
 });
-
 export default router;
+
 
 
