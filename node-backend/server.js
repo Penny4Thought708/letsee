@@ -43,7 +43,7 @@ import iceRouter from "./src/routes/webrtc/ice.js";
 
 // Socket.IO registration
 import registerSockets from "./src/sockets/index.js";
-
+import assistantRouter from "./src/routes/assistant/index.js";
 // Resolve __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -192,6 +192,7 @@ app.use("/api/voicemail", voicemailRouter);
 app.use("/api/call-logs", callLogsRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/profile", profileRouter);
+app.use("/api/assistant", assistantRouter);
 
 /* -------------------------------------------------------
    WEBRTC ICE ROUTE (PUBLIC, NO SESSION REQUIRED)
