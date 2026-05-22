@@ -9,20 +9,33 @@ router.post("/", async (req, res) => {
   try {
     const userMessage = req.body.message;
 
-    const completion = await openai.chat.completions.create({
+    const stream = await openai.chat.completions.create({
       model: "gpt-4o-mini",
+      stream: true,
       messages: [
         { role: "system", content: "You are a friendly DIY expert assistant." },
         { role: "user", content: userMessage }
       ]
     });
 
-    const reply = completion.choices[0].message.content;
-    res.json({ reply });
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    for await (const chunk of stream) {
+      const token = chunk.choices?.[0]?.delta?.content;
+      if (token) {
+        res.write(`data: ${token}\n\n`);
+      }
+    }
+
+    res.write("data: [END]\n\n");
+    res.end();
   } catch (err) {
     console.error("AI Assistant Error:", err);
-    res.status(500).json({ reply: "Sorry, I had trouble responding." });
+    res.status(500).json({ reply: "Server error" });
   }
 });
+
 
 export default router;
