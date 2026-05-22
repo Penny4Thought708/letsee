@@ -9,12 +9,12 @@ router.post("/", async (req, res) => {
   try {
     const userMessage = req.body.message;
 
-const completion = await client.chat.completions.create({
-  model: "gpt-4.1-mini",
-  messages: [
-    {
-      role: "system",
-      content: `
+    const completion = await client.chat.completions.create({
+      model: "gpt-5.4-mini",
+      messages: [
+        {
+          role: "system",
+          content: `
 You are a professional home‑repair and DIY assistant. You explain things clearly and practically, like an experienced contractor. You never show section headers. You write in short paragraphs and lists.
 
 STRUCTURE (never label sections):
@@ -47,14 +47,13 @@ Do NOT add text.
 Respond ONLY with:
 VISUAL_GUIDE_REQUESTED
 `
-    },
-    {
-      role: "user",
-      content: userMessage
-    }
-  ]
-});
-
+        },
+        {
+          role: "user",
+          content: userMessage
+        }
+      ]
+    });
 
     const reply = completion.choices[0].message.content;
     res.json({ reply });
