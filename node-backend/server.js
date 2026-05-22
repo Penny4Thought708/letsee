@@ -68,7 +68,9 @@ const allowedOrigins = [
   "http://127.0.0.1:3001",
   "https://letsee-vv23.onrender.com",
   "https://letsee-backend.onrender.com",
-  "https://penny4thought708.github.io"
+  "https://penny4thought708.github.io",
+  "https://www.diy-core.com",
+"https://diy-core.com"
 ];
 
 // regex for diy-core.com with/without www
