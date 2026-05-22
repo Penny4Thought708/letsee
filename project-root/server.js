@@ -6,6 +6,7 @@ import path from "path";
 import generateGuide from "./api/generate-guide.js";
 import search from "./api/search.js";
 import admin from "./api/admin.js";
+import assistant from "./api/assistant.js";
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.use("/generated", express.static(GENERATED_DIR));
 app.use("/api/generate-guide", generateGuide);
 app.use("/api/search", search);
 app.use("/api/admin", admin);
+app.use("/api/assistant", assistant);
 
 /* ============================================================
    ERROR HANDLER
