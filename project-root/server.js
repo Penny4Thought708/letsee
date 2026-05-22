@@ -15,11 +15,16 @@ const app = express();
 ============================================================ */
 app.use(
   cors({
-    origin: "https://penny4thought708.github.io",
+    origin: [
+      "https://penny4thought708.github.io",
+      "https://www.diy-core.com",
+      "https://diy-core.com"
+    ],
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"]
   })
 );
+
 
 /* ============================================================
    ENSURE REQUIRED DIRECTORIES EXIST
