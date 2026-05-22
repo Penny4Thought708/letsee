@@ -10,20 +10,25 @@ router.post("/", async (req, res) => {
     const userMessage = req.body.message;
 
     // Create a streaming response using the Responses API
-    const stream = await client.responses.stream({
+    const response = await client.responses.create({
       model: "gpt-5.4-mini",
-      input: userMessage
+      input: userMessage,
+      stream: true
     });
+
+    // Convert to a readable stream
+    const readable = response.toReadableStream();
 
     // SSE headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    // Stream tokens
-    for await (const event of stream) {
-      if (event.type === "response.output_text.delta") {
-        res.write(`data: ${event.delta}\n\n`);
+    // Stream chunks
+    for await (const chunk of readable) {
+      const text = chunk?.output_text_delta;
+      if (text) {
+        res.write(`data: ${text}\n\n`);
       }
     }
 
@@ -36,4 +41,5 @@ router.post("/", async (req, res) => {
 });
 
 export default router;
+
 
