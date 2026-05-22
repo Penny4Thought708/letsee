@@ -6,7 +6,7 @@ import path from "path";
 import generateGuide from "./api/generate-guide.js";
 import search from "./api/search.js";
 import admin from "./api/admin.js";
-import assistant from "./api/assistant.js";
+import assistant from "../node-backend/api/assistant.js";
 
 const app = express();
 
