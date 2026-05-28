@@ -94,32 +94,30 @@ JSON structure:
 }
 `;
 
+try {
+  const response = await client.responses.create({
+    model: "gpt-4o",
+    input: prompt,
+    response_format: { type: "json_object" }
+  });
+
+  // ⭐ Correct field for Responses API
+  const content = response.output[0].text;
+
+  let raw;
   try {
-    const response = await client.responses.create({
-      model: "gpt-4o",
-      input: prompt,
-      response_format: { type: "json_object" }
-    });
+    raw = JSON.parse(content);
+  } catch (parseErr) {
+    console.error("[AI] JSON parse error. Raw content:", content);
+    throw new Error("AI returned invalid JSON");
+  }
 
-    // Correct extraction for the new Responses API
-    const content = response.output_text;
+  const guide = validateGuide(raw, query);
+  guideCache.set(norm, { guide, ts: Date.now() });
 
-    let raw;
-    try {
-      raw = JSON.parse(content);
-    } catch (parseErr) {
-      console.error("[AI] JSON parse error. Raw content:", content);
-      throw new Error("AI returned invalid JSON");
-    }
-
-    const guide = validateGuide(raw, query);
-
-    // Save to cache
-    guideCache.set(norm, { guide, ts: Date.now() });
-
-    return guide;
-
-  } catch (err) {
+  return guide;
+}
+catch (err) {
     console.error("[AI] generateGuideAI failed:", err);
 
     // Fallback minimal guide so the app never hard-crashes
