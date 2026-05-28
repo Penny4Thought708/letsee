@@ -2,14 +2,15 @@
 import express from "express";
 import OpenAI from "openai";
 
-const router = express.Router();
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { openai } from "../ai/openaiClient.js";
+
 
 router.post("/", async (req, res) => {
   try {
     const userMessage = req.body.message;
 
-    const completion = await client.chat.completions.create({
+const completion = await openai.chat.completions.create({
+
       model: "gpt-5.4-mini",
       messages: [
         {

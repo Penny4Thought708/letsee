@@ -1,9 +1,8 @@
 // project-root/ai/generateGuideAI.js
 import OpenAI from "openai";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+import { openai } from "./openaiClient.js";
+
 
 // Simple in-memory cache: { [normalizedQuery]: { guide, ts } }
 const guideCache = new Map();
@@ -95,7 +94,8 @@ JSON structure:
 `;
 
 try {
-  const response = await client.responses.create({
+ const response = await openai.responses.create({
+
     model: "gpt-4o",
     input: prompt,
     response_format: { type: "json_object" }
