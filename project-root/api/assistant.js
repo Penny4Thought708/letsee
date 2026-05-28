@@ -1,16 +1,14 @@
 // project-root/api/assistant.js
 import express from "express";
-import OpenAI from "openai";
-
 import { openai } from "../ai/openaiClient.js";
 
+const router = express.Router();   // ⭐ REQUIRED ⭐
 
 router.post("/", async (req, res) => {
   try {
     const userMessage = req.body.message;
 
-const completion = await openai.chat.completions.create({
-
+    const completion = await openai.chat.completions.create({
       model: "gpt-5.4-mini",
       messages: [
         {
@@ -58,6 +56,7 @@ VISUAL_GUIDE_REQUESTED
 
     const reply = completion.choices[0].message.content;
     res.json({ reply });
+
   } catch (err) {
     console.error("AI Assistant Error:", err);
     res.status(500).json({ reply: "Server error" });
