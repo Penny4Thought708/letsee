@@ -16,15 +16,16 @@ const app = express();
 app.use(
   cors({
     origin: [
+      "http://127.0.0.1:5500",
+      "http://localhost:5500",
       "https://penny4thought708.github.io",
       "https://www.diy-core.com",
-      "https://diy-core.com"
+      "https://diy-core.com",
     ],
     methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type"]
-  })
+    allowedHeaders: ["Content-Type"],
+  }),
 );
-
 
 /* ============================================================
    ENSURE REQUIRED DIRECTORIES EXIST
@@ -35,7 +36,7 @@ const GUIDES_DIR = path.join(PUBLIC_DIR, "guides");
 const DATA_DIR = path.join("data");
 
 fs.mkdirSync(PUBLIC_DIR, { recursive: true });
-fs.mkdirSync(GENERATED_DIR, { recursive: true });   // ⭐ REQUIRED for AI images
+fs.mkdirSync(GENERATED_DIR, { recursive: true }); // ⭐ REQUIRED for AI images
 fs.mkdirSync(GUIDES_DIR, { recursive: true });
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
